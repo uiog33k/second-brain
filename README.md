@@ -45,6 +45,14 @@ Then run with `uv run --env-file .env second_brain` — uv does not auto-load `.
 | `LOG_LEVEL` | `INFO`    | Console log level. Set to `DEBUG` in `.env` for verbose output. |
 | `LOG_FILE`  | `app.log` | Path to the rotating log file.                    |
 
+### Log Format
+
+```
+YYYY-MM-DD HH:mm:ss | LVL | module:function:line | message
+```
+
+Level abbreviations: `TRC` `DBG` `INF` `SUC` `WRN` `ERR` `CRT`
+
 ## Testing
 
 Run tests:

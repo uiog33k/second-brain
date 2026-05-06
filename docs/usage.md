@@ -31,3 +31,11 @@ uv run python -m second_brain
 | `LOG_FILE`  | `app.log`  | Path to the log file                 |
 
 Copy `.env.example` to `.env` for development defaults, then run with `uv run --env-file .env`.
+
+## Log Format
+
+```
+YYYY-MM-DD HH:mm:ss | LVL | module:function:line | message
+```
+
+Level abbreviations: `TRC` `DBG` `INF` `SUC` `WRN` `ERR` `CRT`

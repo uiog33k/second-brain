@@ -2,6 +2,26 @@ import sys
 
 from loguru import logger
 
+LEVEL_SHORT = {
+    "TRACE":    "TRC",
+    "DEBUG":    "DBG",
+    "INFO":     "INF",
+    "SUCCESS":  "SUC",
+    "WARNING":  "WRN",
+    "ERROR":    "ERR",
+    "CRITICAL": "CRT",
+}
+
+
+def _format(record):
+    short = LEVEL_SHORT.get(record["level"].name, record["level"].name[:3])
+    return (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+        f"<level>{short}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+        "<level>{message}</level>\n{exception}"
+    )
+
 
 def configure_logging():
     """Configure loguru for console and file logging.
@@ -15,8 +35,8 @@ def configure_logging():
     log_level = os.environ.get("LOG_LEVEL", "INFO")
     log_file = os.environ.get("LOG_FILE", "app.log")
     logger.remove()
-    logger.add(sys.stderr, level=log_level)
-    logger.add(log_file, level="DEBUG", rotation="50 KB", retention=1)
+    logger.add(sys.stderr, level=log_level, format=_format)
+    logger.add(log_file, level="DEBUG", rotation="50 KB", retention=1, format=_format)
 
 
 @logger.catch
