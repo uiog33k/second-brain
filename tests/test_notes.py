@@ -2,6 +2,8 @@ import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from second_brain.notes import build_filename, create_note, get_notes_dir, slugify
 
 # --- slugify ---
@@ -93,6 +95,13 @@ def test_create_note_triple_duplicate_suffix(tmp_path):
 def test_create_note_utf8_encoding(tmp_path):
     p = create_note("Ünïcödé títlé", tmp_path)
     assert p.read_text(encoding="utf-8").startswith("# Ünïcödé títlé")
+
+
+def test_create_note_limit_raises_after_9(tmp_path):
+    for _ in range(9):
+        create_note("My Idea", tmp_path)
+    with pytest.raises(FileExistsError, match="9"):
+        create_note("My Idea", tmp_path)
 
 
 # --- get_notes_dir ---

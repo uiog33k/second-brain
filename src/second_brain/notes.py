@@ -51,6 +51,10 @@ def create_note(title: str, directory: Path) -> Path:
     path = base
     counter = 2
     while path.exists():
+        if counter > 9:
+            raise FileExistsError(
+                f"9 notes with this title already exist for today: {base.name}"
+            )
         path = base.with_stem(f"{base.stem}-{counter}")
         counter += 1
     path.write_text(f"# {title}\n\n", encoding="utf-8")
