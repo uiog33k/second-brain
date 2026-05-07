@@ -1,201 +1,128 @@
-import datetime
-from pathlib import Path
-from unittest.mock import patch
+"""Tests for the notes module (slugify, build_note_path, create_note)."""
+
+from datetime import date, datetime
 
 import pytest
 
-from second_brain.notes import (
-    build_filename,
-    create_note,
-    get_notes_dir,
-    list_notes,
-    read_note,
-    slugify,
+from second_brain.notes import build_note_path, create_note, slugify
+
+# ---------------------------------------------------------------------------
+# slugify
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("My brilliant idea about caching", "my-brilliant-idea-about-caching"),
+        ("Hello, World! @#$%", "hello-world"),
+        ("too---many  spaces", "too-many-spaces"),
+        ("--leading and trailing--", "leading-and-trailing"),
+        ("", "untitled"),
+        ("@#$%^&", "untitled"),
+        ("cafe latte", "cafe-latte"),
+        ("idea 42 is great", "idea-42-is-great"),
+    ],
+    ids=[
+        "basic",
+        "special_chars",
+        "collapsed_hyphens",
+        "leading_trailing",
+        "empty",
+        "only_special",
+        "unicode_ascii",
+        "numbers_preserved",
+    ],
 )
-
-# --- slugify ---
-
-
-def test_slugify_spaces_to_hyphens():
-    assert slugify("My brilliant idea") == "my-brilliant-idea"
+def test_slugify(title, expected):
+    assert slugify(title) == expected
 
 
-def test_slugify_lowercase():
-    assert slugify("Hello World") == "hello-world"
+# ---------------------------------------------------------------------------
+# build_note_path
+# ---------------------------------------------------------------------------
 
 
-def test_slugify_strips_non_alphanum():
-    assert slugify("Hello, World!") == "hello-world"
+def test_build_note_path_basic(tmp_path):
+    result = build_note_path("My idea", tmp_path, date(2026, 3, 22))
+    assert result == tmp_path / "2026-03-22-my-idea.md"
 
 
-def test_slugify_collapses_hyphens():
-    assert slugify("hello---world") == "hello-world"
+def test_build_note_path_creates_dir(tmp_path):
+    nested = tmp_path / "sub" / "dir"
+    result = build_note_path("Test", nested, date(2026, 1, 1))
+    assert nested.is_dir()
+    assert result == nested / "2026-01-01-test.md"
 
 
-def test_slugify_leading_trailing_whitespace():
-    assert slugify("  hello world  ") == "hello-world"
+# ---------------------------------------------------------------------------
+# create_note
+# ---------------------------------------------------------------------------
 
-
-# --- build_filename ---
-
-
-def test_build_filename_format():
-    fixed = datetime.date(2026, 5, 7)
-    with patch("second_brain.notes.date") as mock_date:
-        mock_date.today.return_value = fixed
-        result = build_filename("My brilliant idea about caching")
-    assert result == "2026-05-07-my-brilliant-idea-about-caching.md"
-
-
-# --- create_note ---
-
-
-def test_create_note_returns_path(tmp_path):
-    p = create_note("My Idea", tmp_path)
-    assert isinstance(p, Path)
+FIXED_NOW = datetime(2026, 3, 22, 14, 30, 0)
 
 
 def test_create_note_file_exists(tmp_path):
-    p = create_note("My Idea", tmp_path)
-    assert p.exists()
-
-
-def test_create_note_filename_convention(tmp_path):
-    p = create_note("My Idea", tmp_path)
-    assert p.name.endswith("-my-idea.md")
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    assert path.is_file()
 
 
 def test_create_note_content_heading(tmp_path):
-    p = create_note("My Idea", tmp_path)
-    lines = p.read_text().splitlines()
-    assert lines[0] == "# My Idea"
-    assert lines[1] == ""
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    lines = path.read_text().splitlines()
+    assert lines[0] == "# Test idea"
 
 
-def test_create_note_autocreates_directory(tmp_path):
-    target = tmp_path / "nested" / "notes"
-    create_note("Test", target)
-    assert target.exists()
+def test_create_note_content_timestamp(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    text = path.read_text()
+    assert "2026-03-22T14:30:00" in text
 
 
-def test_create_note_no_overwrite_on_duplicate(tmp_path):
-    p1 = create_note("My Idea", tmp_path)
-    p2 = create_note("My Idea", tmp_path)
-    assert p1 != p2
-    assert p1.exists()
-    assert p2.exists()
+def test_create_note_no_yaml_frontmatter(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    text = path.read_text()
+    assert not text.startswith("---")
 
 
-def test_create_note_duplicate_suffix(tmp_path):
-    p1 = create_note("My Idea", tmp_path)
-    p2 = create_note("My Idea", tmp_path)
-    assert p2.name == p1.stem + "-2.md"
+def test_create_note_returns_absolute_path(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    assert path.is_absolute()
 
 
-def test_create_note_triple_duplicate_suffix(tmp_path):
-    create_note("My Idea", tmp_path)
-    create_note("My Idea", tmp_path)
-    p3 = create_note("My Idea", tmp_path)
-    assert p3.name.endswith("-3.md")
+def test_create_note_creates_directory(tmp_path):
+    nested = tmp_path / "deep" / "dir"
+    path = create_note("Test idea", nested, now=FIXED_NOW)
+    assert nested.is_dir()
+    assert path.is_file()
 
 
-def test_create_note_utf8_encoding(tmp_path):
-    p = create_note("Ünïcödé títlé", tmp_path)
-    assert p.read_text(encoding="utf-8").startswith("# Ünïcödé títlé")
+# ---------------------------------------------------------------------------
+# duplicate-title handling
+# ---------------------------------------------------------------------------
 
 
-def test_create_note_limit_raises_after_9(tmp_path):
-    for _ in range(9):
-        create_note("My Idea", tmp_path)
-    with pytest.raises(FileExistsError, match="9"):
-        create_note("My Idea", tmp_path)
+def test_build_note_path_appends_suffix_when_file_exists(tmp_path):
+    original = build_note_path("idea", tmp_path, date(2026, 3, 22))
+    original.write_text("first")
+    second = build_note_path("idea", tmp_path, date(2026, 3, 22))
+    assert second == tmp_path / "2026-03-22-idea-1.md"
 
 
-# --- get_notes_dir ---
+def test_create_note_no_overwrite(tmp_path):
+    path1 = create_note("My idea", tmp_path, now=FIXED_NOW)
+    path2 = create_note("My idea", tmp_path, now=FIXED_NOW)
+    assert path1 != path2
+    assert path1.is_file()
+    assert path2.is_file()
+    assert path2.name.endswith("-1.md")
 
 
-def test_get_notes_dir_env_override(monkeypatch, tmp_path):
-    monkeypatch.setenv("SECOND_BRAIN_DIR", str(tmp_path))
-    assert get_notes_dir() == tmp_path
-
-
-def test_get_notes_dir_default(monkeypatch):
-    monkeypatch.delenv("SECOND_BRAIN_DIR", raising=False)
-    assert get_notes_dir() == Path.home() / "second_brain"
-
-
-# --- list_notes ---
-
-
-def test_list_notes_missing_directory(tmp_path):
-    assert list_notes(tmp_path / "nonexistent") == []
-
-
-def test_list_notes_empty_directory(tmp_path):
-    assert list_notes(tmp_path) == []
-
-
-def test_list_notes_returns_md_filenames(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("")
-    (tmp_path / "2026-05-07-beta.md").write_text("")
-    assert list_notes(tmp_path) == ["2026-05-01-alpha.md", "2026-05-07-beta.md"]
-
-
-def test_list_notes_ignores_non_md_files(tmp_path):
-    (tmp_path / "note.md").write_text("")
-    (tmp_path / "image.png").write_text("")
-    (tmp_path / "data.txt").write_text("")
-    assert list_notes(tmp_path) == ["note.md"]
-
-
-def test_list_notes_sorted_alphabetically(tmp_path):
-    (tmp_path / "2026-05-07-zebra.md").write_text("")
-    (tmp_path / "2026-04-01-alpha.md").write_text("")
-    (tmp_path / "2026-05-01-middle.md").write_text("")
-    assert list_notes(tmp_path) == [
-        "2026-04-01-alpha.md",
-        "2026-05-01-middle.md",
-        "2026-05-07-zebra.md",
-    ]
-
-
-# --- read_note ---
-
-
-def test_read_note_returns_content(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("# Alpha\n\ncontent", encoding="utf-8")
-    assert read_note(1, tmp_path) == "# Alpha\n\ncontent"
-
-
-def test_read_note_correct_index(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("first", encoding="utf-8")
-    (tmp_path / "2026-05-07-beta.md").write_text("second", encoding="utf-8")
-    assert read_note(2, tmp_path) == "second"
-
-
-def test_read_note_empty_file_returns_empty_string(tmp_path):
-    (tmp_path / "2026-05-01-empty.md").write_text("", encoding="utf-8")
-    assert read_note(1, tmp_path) == ""
-
-
-def test_read_note_index_zero_raises(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
-    with pytest.raises(ValueError):
-        read_note(0, tmp_path)
-
-
-def test_read_note_index_too_large_raises(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
-    with pytest.raises(ValueError):
-        read_note(2, tmp_path)
-
-
-def test_read_note_no_notes_raises(tmp_path):
-    with pytest.raises(ValueError):
-        read_note(1, tmp_path)
-
-
-def test_read_note_negative_index_raises(tmp_path):
-    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
-    with pytest.raises(ValueError):
-        read_note(-1, tmp_path)
+def test_create_note_multiple_duplicates(tmp_path):
+    path1 = create_note("Dup", tmp_path, now=FIXED_NOW)
+    path2 = create_note("Dup", tmp_path, now=FIXED_NOW)
+    path3 = create_note("Dup", tmp_path, now=FIXED_NOW)
+    assert len({path1, path2, path3}) == 3
+    assert path1.is_file() and path2.is_file() and path3.is_file()
+    assert path2.name.endswith("-1.md")
+    assert path3.name.endswith("-2.md")

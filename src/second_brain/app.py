@@ -1,93 +1,52 @@
-"""CLI entry point and logging configuration for second-brain."""
-
+import os
 import sys
 
-import click
-from dotenv import load_dotenv
 from loguru import logger
 
-from second_brain.notes import create_note, get_notes_dir, list_notes, read_note
-
-LEVEL_SHORT = {
-    "TRACE": "TRC",
+_LEVEL_ABBREV = {
     "DEBUG": "DBG",
     "INFO": "INF",
-    "SUCCESS": "SUC",
     "WARNING": "WRN",
     "ERROR": "ERR",
     "CRITICAL": "CRT",
 }
 
+_LOG_FORMAT = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+    "<level>{extra[lvl]}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+    "<level>{message}</level>\n"
+)
 
-def _format(record):
-    short = LEVEL_SHORT.get(record["level"].name, record["level"].name[:3])
-    return (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-        f"<level>{short}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-        "<level>{message}</level>\n{exception}"
+
+def _formatter(record):
+    record["extra"]["lvl"] = _LEVEL_ABBREV.get(
+        record["level"].name, record["level"].name[:3]
     )
+    return _LOG_FORMAT
 
 
 def configure_logging():
     """Configure loguru for console and file logging.
 
     Removes the default handler and sets up:
-
-    - stderr handler at ``LOG_LEVEL`` (default: INFO)
-    - File handler at DEBUG writing to ``LOG_FILE`` (default: app.log)
+    - stderr handler at LOG_LEVEL (default: INFO, configurable via env var)
+    - File handler at DEBUG level writing to LOG_FILE (default: app.log)
     """
-    import os
-
     log_level = os.environ.get("LOG_LEVEL", "INFO")
     log_file = os.environ.get("LOG_FILE", "app.log")
     logger.remove()
-    logger.add(sys.stderr, level=log_level, format=_format)
-    logger.add(log_file, level="DEBUG", rotation="50 KB", retention=1, format=_format)
+    logger.add(sys.stderr, level=log_level, format=_formatter)
+    logger.add(
+        log_file, level="DEBUG", rotation="50 KB", retention=1, format=_formatter
+    )
 
 
-@click.group()
-def cli():
-    """second-brain — personal knowledge CLI."""
-    load_dotenv()
-    configure_logging()
-
-
-@cli.command()
-@click.argument("title")
-def new(title: str):
-    """Create a new note with TITLE."""
-    path = create_note(title, get_notes_dir())
-    click.echo(path)
-    logger.info(f"Created note: {path}")
-
-
-@cli.command(name="list")
-def list_cmd() -> None:
-    """List all notes in the notes directory."""
-    directory = get_notes_dir()
-    click.echo(f"Notes directory: {directory}\n")
-    notes = list_notes(directory)
-    if not notes:
-        click.echo("No notes found.")
-    else:
-        for i, name in enumerate(notes, start=1):
-            click.echo(f"{i}. {name}")
-
-
-@cli.command()
-@click.argument("number", type=click.INT)
-def show(number: int):
-    """Print the content of note NUMBER to the terminal."""
-    directory = get_notes_dir()
-    try:
-        content = read_note(number, directory)
-    except ValueError as exc:
-        raise click.UsageError(str(exc))
-    click.echo(content, nl=False)
-    logger.info(f"Showed note {number}")
-
-
+@logger.catch
 def main():
-    """Run the CLI."""
-    cli()
+    """Run the application.
+
+    Configures logging and prints a greeting to verify the setup works.
+    """
+    configure_logging()
+    logger.info("Hello from second_brain!")
