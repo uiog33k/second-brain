@@ -43,6 +43,16 @@ Notes directory: /home/user/second_brain
 
 If no notes exist, prints `No notes found.` instead.
 
+### Showing a Note
+
+Print the full content of a note by its 1-based index from `list`:
+
+```bash
+uv run second_brain show 2
+```
+
+An out-of-range index exits with a non-zero code and a descriptive error.
+
 ### Running
 
 Via the CLI entrypoint:

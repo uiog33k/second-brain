@@ -52,6 +52,25 @@ No notes found.
 
 Notes are sorted alphabetically, which is also chronological order since filenames are date-prefixed.
 
+## Showing a Note
+
+Print the full content of a note by its number from `list` output:
+
+```bash
+uv run second_brain show 2
+```
+
+Example output:
+
+```
+# Meeting Notes
+
+- Discussed roadmap
+- Action items: ...
+```
+
+The index is 1-based and must be within the range shown by `list`. An out-of-range index or no notes present exits with a non-zero code and a descriptive error.
+
 ## Running
 
 Via the CLI entrypoint:

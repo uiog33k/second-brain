@@ -76,6 +76,29 @@ def list_notes(directory: Path) -> list[str]:
     return sorted(p.name for p in directory.glob("*.md"))
 
 
+def read_note(number: int, directory: Path) -> str:
+    """Return the content of note at 1-based index *number*.
+
+    Args:
+        number: 1-based position as shown by :func:`list_notes`.
+        directory: Path to the notes directory.
+
+    Returns:
+        Full file content as a string.
+
+    Raises:
+        ValueError: If *number* is out of range or there are no notes.
+    """
+    notes = list_notes(directory)
+    if not notes or not (1 <= number <= len(notes)):
+        total = len(notes)
+        raise ValueError(
+            f"Note {number} does not exist. "
+            f"{'No notes found.' if total == 0 else f'Valid range: 1–{total}.'}"
+        )
+    return (directory / notes[number - 1]).read_text(encoding="utf-8")
+
+
 def get_notes_dir() -> Path:
     """Resolve the notes storage directory.
 
