@@ -4,6 +4,7 @@ Format target:
 
     2026-05-06 14:32:01 | INF | second_brain.app:main:29 | Hello from second_brain!
 """
+
 import os
 import re
 

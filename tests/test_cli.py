@@ -94,6 +94,52 @@ def test_cli_new_help():
     assert "TITLE" in result.output
 
 
+def test_cli_new_help_mentions_content():
+    result = runner.invoke(cli, ["new", "--help"])
+    assert result.exit_code == 0
+    assert "--content" in result.output
+    assert "-c" in result.output
+
+
+# ---------------------------------------------------------------------------
+# new --content / -c
+# ---------------------------------------------------------------------------
+
+
+def test_cli_new_with_content_flag(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Title", "--content", "Body text"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text()
+    assert text.endswith("\nBody text\n")
+    assert "# Title" in text
+
+
+def test_cli_new_with_short_c_flag(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Title", "-c", "Short body"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    assert md_file.read_text().endswith("\nShort body\n")
+
+
+def test_cli_new_content_preserves_newlines(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Title", "--content", "line1\nline2"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text()
+    assert "line1\nline2\n" in text
+
+
+def test_cli_new_without_content_unchanged(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Title"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text()
+    assert text.startswith("# Title\n\n")
+    # Header + timestamp line + trailing newline only — no body section.
+    assert text.count("\n") == 3
+
+
 # ---------------------------------------------------------------------------
 # list subcommand
 # ---------------------------------------------------------------------------

@@ -20,6 +20,13 @@ uv run second_brain list                      # list notes (newest first)
 uv run second_brain show 1                    # print the contents of note 1
 ```
 
+Pass `--content` / `-c` to populate the note body in one shot (newlines preserved):
+
+```bash
+uv run second_brain new "Standup" --content "Shipped X, blocked on Y."
+uv run second_brain new "Outline" -c $'Section 1\nSection 2'
+```
+
 With dev environment variables loaded:
 
 ```bash

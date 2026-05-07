@@ -18,6 +18,23 @@ uv run second_brain list                      # list notes (newest first)
 uv run second_brain show 1                    # print the contents of note 1
 ```
 
+### Creating a note with body content
+
+Pass `--content` (or `-c`) to write a fully populated note in one command:
+
+```bash
+uv run second_brain new "Standup notes" --content "Shipped X, blocked on Y."
+uv run second_brain new "Idea" -c "$(pbpaste)"
+```
+
+Newlines in the value are preserved verbatim, so multi-line bodies work too:
+
+```bash
+uv run second_brain new "Outline" -c $'Section 1\nSection 2\nSection 3'
+```
+
+When `--content` is omitted, `new` creates the usual stub (heading + timestamp).
+
 With dev settings loaded:
 
 ```bash

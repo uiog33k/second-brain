@@ -20,13 +20,20 @@ def cli():
 
 @cli.command()
 @click.argument("title")
-def new(title: str):
+@click.option(
+    "-c",
+    "--content",
+    "content",
+    default=None,
+    help="Body content to write below the header. Newlines are preserved verbatim.",
+)
+def new(title: str, content: str | None):
     """Create a new note with the given TITLE."""
     base_dir = Path(
         os.environ.get("SECOND_BRAIN_DIR", str(Path.home() / "second_brain"))
     ).expanduser()
     logger.debug("Creating note in {}", base_dir)
-    path = create_note(title, base_dir)
+    path = create_note(title, base_dir, body=content)
     logger.info("Created note: {}", path)
     click.echo(path)
 

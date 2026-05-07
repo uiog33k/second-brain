@@ -98,6 +98,37 @@ def test_create_note_creates_directory(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# body parameter
+# ---------------------------------------------------------------------------
+
+
+def test_create_note_with_body_appends_after_header(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW, body="Hello body")
+    text = path.read_text()
+    assert text == "# Test idea\n\n2026-03-22T14:30:00\n\nHello body\n"
+
+
+def test_create_note_with_body_preserves_newlines(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW, body="line1\nline2\nline3")
+    text = path.read_text()
+    assert "line1\nline2\nline3\n" in text
+    lines = text.splitlines()
+    assert "line1" in lines
+    assert "line2" in lines
+    assert "line3" in lines
+
+
+def test_create_note_without_body_unchanged(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    assert path.read_text() == "# Test idea\n\n2026-03-22T14:30:00\n"
+
+
+def test_create_note_empty_body_treated_as_none(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW, body="")
+    assert path.read_text() == "# Test idea\n\n2026-03-22T14:30:00\n"
+
+
+# ---------------------------------------------------------------------------
 # duplicate-title handling
 # ---------------------------------------------------------------------------
 
