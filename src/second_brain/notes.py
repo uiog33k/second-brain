@@ -47,8 +47,13 @@ def create_note(title: str, directory: Path) -> Path:
     """
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / build_filename(title)
-    path.write_text(f"# {title}\n\n")
+    base = directory / build_filename(title)
+    path = base
+    counter = 2
+    while path.exists():
+        path = base.with_stem(f"{base.stem}-{counter}")
+        counter += 1
+    path.write_text(f"# {title}\n\n", encoding="utf-8")
     return path
 
 

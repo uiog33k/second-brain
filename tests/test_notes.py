@@ -69,6 +69,32 @@ def test_create_note_autocreates_directory(tmp_path):
     assert target.exists()
 
 
+def test_create_note_no_overwrite_on_duplicate(tmp_path):
+    p1 = create_note("My Idea", tmp_path)
+    p2 = create_note("My Idea", tmp_path)
+    assert p1 != p2
+    assert p1.exists()
+    assert p2.exists()
+
+
+def test_create_note_duplicate_suffix(tmp_path):
+    p1 = create_note("My Idea", tmp_path)
+    p2 = create_note("My Idea", tmp_path)
+    assert p2.name == p1.stem + "-2.md"
+
+
+def test_create_note_triple_duplicate_suffix(tmp_path):
+    create_note("My Idea", tmp_path)
+    create_note("My Idea", tmp_path)
+    p3 = create_note("My Idea", tmp_path)
+    assert p3.name.endswith("-3.md")
+
+
+def test_create_note_utf8_encoding(tmp_path):
+    p = create_note("Ünïcödé títlé", tmp_path)
+    assert p.read_text(encoding="utf-8").startswith("# Ünïcödé títlé")
+
+
 # --- get_notes_dir ---
 
 
