@@ -12,6 +12,22 @@ uv sync
 
 ## Usage
 
+### Creating Notes
+
+Capture a quick idea as a markdown file:
+
+```bash
+uv run second_brain new "My brilliant idea about caching"
+```
+
+The command prints the full path of the created file:
+
+```
+/home/user/second_brain/2026-05-07-my-brilliant-idea-about-caching.md
+```
+
+### Running
+
 Via the CLI entrypoint:
 
 ```bash
@@ -40,10 +56,11 @@ cp .env.example .env
 
 Then run with `uv run --env-file .env second_brain` — uv does not auto-load `.env` files.
 
-| Variable    | Default   | Description                                       |
-|-------------|-----------|---------------------------------------------------|
-| `LOG_LEVEL` | `INFO`    | Console log level. Set to `DEBUG` in `.env` for verbose output. |
-| `LOG_FILE`  | `app.log` | Path to the rotating log file.                    |
+| Variable           | Default          | Description                                       |
+|--------------------|------------------|---------------------------------------------------|
+| `LOG_LEVEL`        | `INFO`           | Console log level. Set to `DEBUG` in `.env` for verbose output. |
+| `LOG_FILE`         | `app.log`        | Path to the rotating log file.                    |
+| `SECOND_BRAIN_DIR` | `~/second_brain` | Directory where notes are stored.                 |
 
 ### Log Format
 

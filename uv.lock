@@ -657,7 +657,9 @@ name = "second-brain"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "loguru" },
+    { name = "python-dotenv" },
 ]
 
 [package.dev-dependencies]
@@ -672,7 +674,11 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "loguru", specifier = ">=0.7" }]
+requires-dist = [
+    { name = "click", specifier = ">=8.0" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
