@@ -1,14 +1,20 @@
+"""CLI entry point and logging configuration for second-brain."""
+
 import sys
 
+import click
+from dotenv import load_dotenv
 from loguru import logger
 
+from second_brain.notes import create_note, get_notes_dir
+
 LEVEL_SHORT = {
-    "TRACE":    "TRC",
-    "DEBUG":    "DBG",
-    "INFO":     "INF",
-    "SUCCESS":  "SUC",
-    "WARNING":  "WRN",
-    "ERROR":    "ERR",
+    "TRACE": "TRC",
+    "DEBUG": "DBG",
+    "INFO": "INF",
+    "SUCCESS": "SUC",
+    "WARNING": "WRN",
+    "ERROR": "ERR",
     "CRITICAL": "CRT",
 }
 
@@ -27,8 +33,9 @@ def configure_logging():
     """Configure loguru for console and file logging.
 
     Removes the default handler and sets up:
-    - stderr handler at LOG_LEVEL (default: INFO, configurable via env var)
-    - File handler at DEBUG level writing to LOG_FILE (default: app.log)
+
+    - stderr handler at ``LOG_LEVEL`` (default: INFO)
+    - File handler at DEBUG writing to ``LOG_FILE`` (default: app.log)
     """
     import os
 
@@ -39,11 +46,22 @@ def configure_logging():
     logger.add(log_file, level="DEBUG", rotation="50 KB", retention=1, format=_format)
 
 
-@logger.catch
-def main():
-    """Run the application.
-
-    Configures logging and prints a greeting to verify the setup works.
-    """
+@click.group()
+def cli():
+    """second-brain — personal knowledge CLI."""
+    load_dotenv()
     configure_logging()
-    logger.info("Hello from second_brain!")
+
+
+@cli.command()
+@click.argument("title")
+def new(title: str):
+    """Create a new note with TITLE."""
+    path = create_note(title, get_notes_dir())
+    click.echo(path)
+    logger.info(f"Created note: {path}")
+
+
+def main():
+    """Run the CLI."""
+    cli()

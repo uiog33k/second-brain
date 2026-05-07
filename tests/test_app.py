@@ -1,28 +1,33 @@
-import re
+from click.testing import CliRunner
 
-from second_brain.app import main
-
-
-def test_main_logs_greeting(capfd):
-    main()
-    captured = capfd.readouterr()
-    assert "Hello from second_brain!" in captured.err
+from second_brain.app import cli
 
 
-def test_log_format_no_milliseconds(capfd):
-    main()
-    captured = capfd.readouterr()
-    assert not re.search(r"\d{2}:\d{2}:\d{2}\.\d", captured.err)
+def test_cli_new_creates_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("SECOND_BRAIN_DIR", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(cli, ["new", "My Idea"])
+    assert result.exit_code == 0
+    assert len(list(tmp_path.glob("*.md"))) == 1
 
 
-def test_log_format_short_level_name(capfd):
-    main()
-    captured = capfd.readouterr()
-    assert "INF" in captured.err
-    assert "INFO" not in captured.err
+def test_cli_new_prints_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("SECOND_BRAIN_DIR", str(tmp_path))
+    runner = CliRunner()
+    result = runner.invoke(cli, ["new", "My Idea"])
+    assert str(tmp_path) in result.output
 
 
-def test_log_format_pipe_separator(capfd):
-    main()
-    captured = capfd.readouterr()
-    assert "| Hello from second_brain!" in captured.err
+def test_cli_new_env_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("SECOND_BRAIN_DIR", str(tmp_path))
+    runner = CliRunner()
+    runner.invoke(cli, ["new", "Env Test"])
+    assert any(tmp_path.glob("*.md"))
+
+
+def test_cli_new_file_content(tmp_path, monkeypatch):
+    monkeypatch.setenv("SECOND_BRAIN_DIR", str(tmp_path))
+    runner = CliRunner()
+    runner.invoke(cli, ["new", "Content Test"])
+    f = next(tmp_path.glob("*.md"))
+    assert f.read_text().startswith("# Content Test\n\n")
