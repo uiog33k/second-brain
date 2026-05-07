@@ -1,112 +1,47 @@
-"""Business logic for creating and managing notes."""
+"""Business logic for note creation."""
 
-import os
+from __future__ import annotations
+
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 
 def slugify(title: str) -> str:
-    """Convert a title string into a URL-safe slug.
-
-    Args:
-        title: The note title to slugify.
-
-    Returns:
-        Lowercase hyphen-separated alphanumeric string.
-    """
+    """Convert a title string into a filename-safe slug."""
     slug = title.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    return slug.strip("-")
+    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"[\s-]+", "-", slug)
+    slug = slug.strip("-")
+    return slug or "untitled"
 
 
-def build_filename(title: str) -> str:
-    """Build a date-prefixed markdown filename from a title.
+def build_note_path(title: str, base_dir: Path, note_date: date) -> Path:
+    """Build the full file path for a note, creating the directory if needed.
 
-    Args:
-        title: The note title.
-
-    Returns:
-        Filename in the form ``YYYY-MM-DD-slug.md``.
+    If a file with the same name already exists, appends -1, -2, … to avoid
+    overwriting.
     """
-    return f"{date.today().isoformat()}-{slugify(title)}.md"
-
-
-def create_note(title: str, directory: Path) -> Path:
-    """Create a markdown note file in the given directory.
-
-    The file contains a level-1 heading matching the title followed by a
-    blank line.  The target directory is created if it does not exist.
-
-    Args:
-        title: The note title used for both the heading and filename.
-        directory: The directory in which to write the file.
-
-    Returns:
-        The :class:`~pathlib.Path` of the created file.
-    """
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    base = directory / build_filename(title)
-    path = base
-    counter = 2
-    while path.exists():
-        if counter > 9:
-            raise FileExistsError(
-                f"9 notes with this title already exist for today: {base.name}"
-            )
-        path = base.with_stem(f"{base.stem}-{counter}")
+    base_dir.mkdir(parents=True, exist_ok=True)
+    slug = slugify(title)
+    stem = f"{note_date.isoformat()}-{slug}"
+    candidate = base_dir / f"{stem}.md"
+    counter = 1
+    while candidate.exists():
+        candidate = base_dir / f"{stem}-{counter}.md"
         counter += 1
-    path.write_text(f"# {title}\n\n", encoding="utf-8")
-    return path
+    return candidate
 
 
-def list_notes(directory: Path) -> list[str]:
-    """Return a sorted list of .md filenames in a directory.
-
-    Args:
-        directory: Path to the notes directory.
-
-    Returns:
-        Alphabetically sorted list of ``.md`` filenames, or an empty list if
-        the directory does not exist or contains no ``.md`` files.
-    """
-    if not directory.exists():
-        return []
-    return sorted(p.name for p in directory.glob("*.md"))
-
-
-def read_note(number: int, directory: Path) -> str:
-    """Return the content of note at 1-based index *number*.
-
-    Args:
-        number: 1-based position as shown by :func:`list_notes`.
-        directory: Path to the notes directory.
-
-    Returns:
-        Full file content as a string.
-
-    Raises:
-        ValueError: If *number* is out of range or there are no notes.
-    """
-    notes = list_notes(directory)
-    if not notes or not (1 <= number <= len(notes)):
-        total = len(notes)
-        raise ValueError(
-            f"Note {number} does not exist. "
-            f"{'No notes found.' if total == 0 else f'Valid range: 1–{total}.'}"
-        )
-    return (directory / notes[number - 1]).read_text(encoding="utf-8")
-
-
-def get_notes_dir() -> Path:
-    """Resolve the notes storage directory.
-
-    Reads ``SECOND_BRAIN_DIR`` from the environment; falls back to
-    ``~/second_brain``.
-
-    Returns:
-        The resolved :class:`~pathlib.Path` for notes storage.
-    """
-    env = os.environ.get("SECOND_BRAIN_DIR")
-    return Path(env) if env else Path.home() / "second_brain"
+def create_note(
+    title: str,
+    base_dir: Path,
+    now: datetime | None = None,
+) -> Path:
+    """Create a markdown note file and return its absolute path."""
+    now = now or datetime.now()
+    path = build_note_path(title, base_dir, now.date())
+    timestamp = now.replace(microsecond=0).isoformat()
+    content = f"# {title}\n\n{timestamp}\n"
+    path.write_text(content, encoding="utf-8")
+    return path.resolve()

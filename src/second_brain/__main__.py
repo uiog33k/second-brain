@@ -1,3 +1,3 @@
-from second_brain.app import main
+from second_brain.cli import cli
 
-main()
+cli()
