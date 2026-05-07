@@ -4,7 +4,13 @@ from unittest.mock import patch
 
 import pytest
 
-from second_brain.notes import build_filename, create_note, get_notes_dir, slugify
+from second_brain.notes import (
+    build_filename,
+    create_note,
+    get_notes_dir,
+    list_notes,
+    slugify,
+)
 
 # --- slugify ---
 
@@ -115,3 +121,38 @@ def test_get_notes_dir_env_override(monkeypatch, tmp_path):
 def test_get_notes_dir_default(monkeypatch):
     monkeypatch.delenv("SECOND_BRAIN_DIR", raising=False)
     assert get_notes_dir() == Path.home() / "second_brain"
+
+
+# --- list_notes ---
+
+
+def test_list_notes_missing_directory(tmp_path):
+    assert list_notes(tmp_path / "nonexistent") == []
+
+
+def test_list_notes_empty_directory(tmp_path):
+    assert list_notes(tmp_path) == []
+
+
+def test_list_notes_returns_md_filenames(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("")
+    (tmp_path / "2026-05-07-beta.md").write_text("")
+    assert list_notes(tmp_path) == ["2026-05-01-alpha.md", "2026-05-07-beta.md"]
+
+
+def test_list_notes_ignores_non_md_files(tmp_path):
+    (tmp_path / "note.md").write_text("")
+    (tmp_path / "image.png").write_text("")
+    (tmp_path / "data.txt").write_text("")
+    assert list_notes(tmp_path) == ["note.md"]
+
+
+def test_list_notes_sorted_alphabetically(tmp_path):
+    (tmp_path / "2026-05-07-zebra.md").write_text("")
+    (tmp_path / "2026-04-01-alpha.md").write_text("")
+    (tmp_path / "2026-05-01-middle.md").write_text("")
+    assert list_notes(tmp_path) == [
+        "2026-04-01-alpha.md",
+        "2026-05-01-middle.md",
+        "2026-05-07-zebra.md",
+    ]

@@ -26,6 +26,23 @@ The command prints the full path of the created file:
 /home/user/second_brain/2026-05-07-my-brilliant-idea-about-caching.md
 ```
 
+### Listing Notes
+
+See all notes in your notes directory:
+
+```bash
+uv run second_brain list
+```
+
+```
+Notes directory: /home/user/second_brain
+
+1. 2026-04-01-project-ideas.md
+2. 2026-05-07-new-feature-brainstorm.md
+```
+
+If no notes exist, prints `No notes found.` instead.
+
 ### Running
 
 Via the CLI entrypoint:
