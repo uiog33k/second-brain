@@ -6,7 +6,7 @@ import click
 from dotenv import load_dotenv
 from loguru import logger
 
-from second_brain.notes import create_note, get_notes_dir
+from second_brain.notes import create_note, get_notes_dir, list_notes
 
 LEVEL_SHORT = {
     "TRACE": "TRC",
@@ -60,6 +60,19 @@ def new(title: str):
     path = create_note(title, get_notes_dir())
     click.echo(path)
     logger.info(f"Created note: {path}")
+
+
+@cli.command(name="list")
+def list_cmd() -> None:
+    """List all notes in the notes directory."""
+    directory = get_notes_dir()
+    click.echo(f"Notes directory: {directory}\n")
+    notes = list_notes(directory)
+    if not notes:
+        click.echo("No notes found.")
+    else:
+        for i, name in enumerate(notes, start=1):
+            click.echo(f"{i}. {name}")
 
 
 def main():

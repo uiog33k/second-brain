@@ -61,6 +61,21 @@ def create_note(title: str, directory: Path) -> Path:
     return path
 
 
+def list_notes(directory: Path) -> list[str]:
+    """Return a sorted list of .md filenames in a directory.
+
+    Args:
+        directory: Path to the notes directory.
+
+    Returns:
+        Alphabetically sorted list of ``.md`` filenames, or an empty list if
+        the directory does not exist or contains no ``.md`` files.
+    """
+    if not directory.exists():
+        return []
+    return sorted(p.name for p in directory.glob("*.md"))
+
+
 def get_notes_dir() -> Path:
     """Resolve the notes storage directory.
 
