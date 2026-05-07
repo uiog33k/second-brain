@@ -9,6 +9,7 @@ from second_brain.notes import (
     create_note,
     get_notes_dir,
     list_notes,
+    read_note,
     slugify,
 )
 
@@ -156,3 +157,45 @@ def test_list_notes_sorted_alphabetically(tmp_path):
         "2026-05-01-middle.md",
         "2026-05-07-zebra.md",
     ]
+
+
+# --- read_note ---
+
+
+def test_read_note_returns_content(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("# Alpha\n\ncontent", encoding="utf-8")
+    assert read_note(1, tmp_path) == "# Alpha\n\ncontent"
+
+
+def test_read_note_correct_index(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("first", encoding="utf-8")
+    (tmp_path / "2026-05-07-beta.md").write_text("second", encoding="utf-8")
+    assert read_note(2, tmp_path) == "second"
+
+
+def test_read_note_empty_file_returns_empty_string(tmp_path):
+    (tmp_path / "2026-05-01-empty.md").write_text("", encoding="utf-8")
+    assert read_note(1, tmp_path) == ""
+
+
+def test_read_note_index_zero_raises(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_note(0, tmp_path)
+
+
+def test_read_note_index_too_large_raises(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_note(2, tmp_path)
+
+
+def test_read_note_no_notes_raises(tmp_path):
+    with pytest.raises(ValueError):
+        read_note(1, tmp_path)
+
+
+def test_read_note_negative_index_raises(tmp_path):
+    (tmp_path / "2026-05-01-alpha.md").write_text("content", encoding="utf-8")
+    with pytest.raises(ValueError):
+        read_note(-1, tmp_path)

@@ -6,7 +6,7 @@ import click
 from dotenv import load_dotenv
 from loguru import logger
 
-from second_brain.notes import create_note, get_notes_dir, list_notes
+from second_brain.notes import create_note, get_notes_dir, list_notes, read_note
 
 LEVEL_SHORT = {
     "TRACE": "TRC",
@@ -73,6 +73,19 @@ def list_cmd() -> None:
     else:
         for i, name in enumerate(notes, start=1):
             click.echo(f"{i}. {name}")
+
+
+@cli.command()
+@click.argument("number", type=click.INT)
+def show(number: int):
+    """Print the content of note NUMBER to the terminal."""
+    directory = get_notes_dir()
+    try:
+        content = read_note(number, directory)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+    click.echo(content, nl=False)
+    logger.info(f"Showed note {number}")
 
 
 def main():
