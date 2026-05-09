@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 import pytest
 
-from second_brain.notes import build_note_path, create_note, slugify
+from second_brain.notes import build_note_path, create_note, list_notes, slugify
 
 # ---------------------------------------------------------------------------
 # slugify
@@ -156,3 +156,50 @@ def test_create_note_body_empty_string_leaves_stub(tmp_path):
     path = create_note("Stub", tmp_path, now=FIXED_NOW, body="")
     text = path.read_text(encoding="utf-8")
     assert text == "# Stub\n\n2026-03-22T14:30:00\n"
+
+
+# ---------------------------------------------------------------------------
+# list_notes
+# ---------------------------------------------------------------------------
+
+
+def test_list_notes_missing_dir_returns_empty(tmp_path):
+    assert list_notes(tmp_path / "nope") == []
+
+
+def test_list_notes_empty_dir(tmp_path):
+    assert list_notes(tmp_path) == []
+
+
+def test_list_notes_ignores_non_md(tmp_path):
+    (tmp_path / "a.md").write_text("# a\n")
+    (tmp_path / "b.txt").write_text("nope")
+    result = list_notes(tmp_path)
+    assert [p.name for p in result] == ["a.md"]
+
+
+def test_list_notes_alpha_sort(tmp_path):
+    (tmp_path / "2026-03-22-c.md").write_text("# c\n")
+    (tmp_path / "2026-03-20-a.md").write_text("# a\n")
+    (tmp_path / "2026-03-21-b.md").write_text("# b\n")
+    result = list_notes(tmp_path, sort="name")
+    assert [p.name for p in result] == [
+        "2026-03-20-a.md",
+        "2026-03-21-b.md",
+        "2026-03-22-c.md",
+    ]
+
+
+def test_list_notes_mtime_sort_newest_first(tmp_path):
+    import os
+    import time
+
+    old = tmp_path / "old.md"
+    new = tmp_path / "new.md"
+    old.write_text("# old\n")
+    time.sleep(0.01)
+    new.write_text("# new\n")
+    # Ensure mtimes are distinct even on coarse-grained filesystems.
+    os.utime(old, (old.stat().st_atime, old.stat().st_mtime - 5))
+    result = list_notes(tmp_path, sort="mtime")
+    assert [p.name for p in result] == ["new.md", "old.md"]
