@@ -20,13 +20,39 @@ def cli():
 
 @cli.command()
 @click.argument("title")
-def new(title: str):
+@click.option(
+    "-c",
+    "--content",
+    "content",
+    default=None,
+    help="Body text to write below the header. Newlines are preserved.",
+)
+@click.option(
+    "--from-file",
+    "from_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read body content from PATH. Ignored if --content is also given.",
+)
+def new(title: str, content: str | None, from_file: Path | None):
     """Create a new note with the given TITLE."""
     base_dir = Path(
         os.environ.get("SECOND_BRAIN_DIR", str(Path.home() / "second_brain"))
     ).expanduser()
+
+    if content is not None and from_file is not None:
+        click.echo(
+            "warning: --from-file ignored because --content was provided",
+            err=True,
+        )
+        body: str | None = content
+    elif from_file is not None:
+        body = from_file.read_text(encoding="utf-8")
+    else:
+        body = content
+
     logger.debug("Creating note in {}", base_dir)
-    path = create_note(title, base_dir)
+    path = create_note(title, base_dir, body=body)
     logger.info("Created note: {}", path)
     click.echo(path)
 

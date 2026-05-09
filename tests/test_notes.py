@@ -126,3 +126,33 @@ def test_create_note_multiple_duplicates(tmp_path):
     assert path1.is_file() and path2.is_file() and path3.is_file()
     assert path2.name.endswith("-1.md")
     assert path3.name.endswith("-2.md")
+
+
+# ---------------------------------------------------------------------------
+# body content
+# ---------------------------------------------------------------------------
+
+
+def test_create_note_with_body_appends_after_header(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW, body="hello world")
+    text = path.read_text(encoding="utf-8")
+    assert text == "# Test idea\n\n2026-03-22T14:30:00\n\nhello world\n"
+
+
+def test_create_note_body_preserves_newlines(tmp_path):
+    body = "line one\nline two\n\nparagraph two"
+    path = create_note("Multi", tmp_path, now=FIXED_NOW, body=body)
+    text = path.read_text(encoding="utf-8")
+    assert text.endswith("\nline one\nline two\n\nparagraph two\n")
+
+
+def test_create_note_body_none_leaves_stub(tmp_path):
+    path = create_note("Stub", tmp_path, now=FIXED_NOW, body=None)
+    text = path.read_text(encoding="utf-8")
+    assert text == "# Stub\n\n2026-03-22T14:30:00\n"
+
+
+def test_create_note_body_empty_string_leaves_stub(tmp_path):
+    path = create_note("Stub", tmp_path, now=FIXED_NOW, body="")
+    text = path.read_text(encoding="utf-8")
+    assert text == "# Stub\n\n2026-03-22T14:30:00\n"
