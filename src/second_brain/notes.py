@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from pathlib import Path
+from typing import Literal
+
+SortMode = Literal["mtime", "name"]
 
 
 def slugify(title: str) -> str:
@@ -60,3 +63,26 @@ def create_note(
         content = f"{content}\n{body}\n"
     path.write_text(content, encoding="utf-8")
     return path.resolve()
+
+
+def list_notes(base_dir: Path, sort: SortMode = "mtime") -> list[Path]:
+    """Return markdown notes in ``base_dir`` ordered by ``sort``.
+
+    Args:
+        base_dir: Directory to scan for ``*.md`` files. Missing directory
+            yields an empty list.
+        sort: ``"mtime"`` orders newest-first by file modification time
+            (with filename as a deterministic tiebreaker). ``"name"``
+            orders ascending by filename.
+
+    Returns:
+        List of absolute paths to markdown notes, possibly empty.
+    """
+    if not base_dir.is_dir():
+        return []
+    files = list(base_dir.glob("*.md"))
+    if sort == "mtime":
+        files.sort(key=lambda p: (-p.stat().st_mtime, p.name))
+    else:
+        files.sort(key=lambda p: p.name)
+    return files

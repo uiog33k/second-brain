@@ -12,7 +12,14 @@ uv sync
 
 ## Usage
 
-The CLI exposes three subcommands:
+Running with no arguments launches an interactive Textual TUI for browsing
+notes and creating new ones (see `docs/tui.md`):
+
+```bash
+uv run second_brain
+```
+
+The CLI also exposes three subcommands for scripting:
 
 ```bash
 uv run second_brain new "My brilliant idea"   # create a note
