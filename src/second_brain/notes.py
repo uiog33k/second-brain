@@ -37,11 +37,26 @@ def create_note(
     title: str,
     base_dir: Path,
     now: datetime | None = None,
+    body: str | None = None,
 ) -> Path:
-    """Create a markdown note file and return its absolute path."""
+    """Create a markdown note file and return its absolute path.
+
+    Args:
+        title: Note title used for the heading and slugged filename.
+        base_dir: Directory where the note is written (created if missing).
+        now: Optional fixed timestamp; defaults to ``datetime.now()``.
+        body: Optional body text appended below the header, separated by a
+            blank line. Newlines are preserved verbatim. Empty/``None``
+            leaves the stub note unchanged.
+
+    Returns:
+        Absolute path to the newly created note file.
+    """
     now = now or datetime.now()
     path = build_note_path(title, base_dir, now.date())
     timestamp = now.replace(microsecond=0).isoformat()
     content = f"# {title}\n\n{timestamp}\n"
+    if body:
+        content = f"{content}\n{body}\n"
     path.write_text(content, encoding="utf-8")
     return path.resolve()

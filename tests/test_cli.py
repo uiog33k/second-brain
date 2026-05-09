@@ -78,6 +78,69 @@ def test_cli_new_file_content_has_timestamp(tmp_note_dir):
 
 
 # ---------------------------------------------------------------------------
+# new --content / --from-file
+# ---------------------------------------------------------------------------
+
+
+def test_cli_new_with_content_flag_writes_body(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Body test", "--content", "inline body"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert text.endswith("\ninline body\n")
+
+
+def test_cli_new_short_c_flag_equivalent_to_content(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Body test", "-c", "short flag body"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert text.endswith("\nshort flag body\n")
+
+
+def test_cli_new_from_file_writes_body(tmp_note_dir, tmp_path):
+    src = tmp_path / "input.md"
+    src.write_text("from-file body\nsecond line", encoding="utf-8")
+    result = runner.invoke(cli, ["new", "From file", "--from-file", str(src)])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert text.endswith("\nfrom-file body\nsecond line\n")
+
+
+def test_cli_new_both_flags_prefers_content_and_warns(tmp_note_dir, tmp_path):
+    src = tmp_path / "ignored.md"
+    src.write_text("file body that should be ignored", encoding="utf-8")
+    result = runner.invoke(
+        cli,
+        ["new", "Conflict", "--content", "wins", "--from-file", str(src)],
+    )
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert text.endswith("\nwins\n")
+    assert "file body that should be ignored" not in text
+    assert "--from-file" in result.stderr
+    assert "ignored" in result.stderr.lower()
+
+
+def test_cli_new_from_file_missing_path_errors(tmp_note_dir, tmp_path):
+    missing = tmp_path / "does-not-exist.md"
+    result = runner.invoke(cli, ["new", "Missing", "--from-file", str(missing)])
+    assert result.exit_code != 0
+
+
+def test_cli_new_no_flags_unchanged(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "Plain"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    lines = md_file.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "# Plain"
+    # stub note: heading, blank, timestamp — no body section
+    assert len(lines) == 3
+
+
+# ---------------------------------------------------------------------------
 # help
 # ---------------------------------------------------------------------------
 

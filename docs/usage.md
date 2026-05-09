@@ -30,6 +30,28 @@ Or as a Python module:
 uv run python -m second_brain new "My brilliant idea"
 ```
 
+## Passing body content to `new`
+
+By default `new` writes a stub note (heading + ISO timestamp). To capture
+body content in one command, pass `--content` / `-c`:
+
+```bash
+uv run second_brain new "Quick capture" --content "the body text"
+uv run second_brain new "Quick capture" -c "the body text"
+```
+
+Or read the body from a file with `--from-file`:
+
+```bash
+uv run second_brain new "Imported" --from-file path/to/source.md
+```
+
+The body is appended below the timestamp, separated by a blank line.
+Newlines in the supplied content are preserved verbatim.
+
+If both `--content` and `--from-file` are supplied, `--content` wins and a
+warning is printed to stderr that `--from-file` was ignored.
+
 ## Environment Variables
 
 | Variable            | Default            | Description                          |

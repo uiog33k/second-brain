@@ -20,6 +20,16 @@ uv run second_brain list                      # list notes (newest first)
 uv run second_brain show 1                    # print the contents of note 1
 ```
 
+`new` accepts optional body content so a note can be created in one step:
+
+```bash
+uv run second_brain new "Quick capture" -c "the body text"
+uv run second_brain new "Imported" --from-file path/to/source.md
+```
+
+If both `--content` and `--from-file` are given, `--content` wins and a
+warning is printed to stderr.
+
 With dev environment variables loaded:
 
 ```bash
