@@ -109,13 +109,13 @@ class SecondBrainApp(App):
                         yield Button("Cancel", id="cancel-btn")
         yield Footer()
 
-    def on_mount(self) -> None:
-        self._refresh_list()
+    async def on_mount(self) -> None:
+        await self._refresh_list()
 
     # ------------------------------------------------------------------
     # Note list / preview
     # ------------------------------------------------------------------
-    def _refresh_list(self, select_path: Path | None = None) -> None:
+    async def _refresh_list(self, select_path: Path | None = None) -> None:
         list_view = self.query_one("#notes-list", ListView)
         list_view.clear()
         notes = list_notes(self.base_dir, sort=self.sort_mode)
@@ -126,53 +126,53 @@ class SecondBrainApp(App):
                 target_idx = i
         if notes:
             list_view.index = target_idx
-            self._show_note(notes[target_idx])
+            await self._show_note(notes[target_idx])
         else:
             self._current_path = None
-            self._update_preview("")
+            await self._update_preview("")
 
-    def _show_note(self, path: Path) -> None:
+    async def _show_note(self, path: Path) -> None:
         self._current_path = path
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
             text = ""
-        self._update_preview(text)
+        await self._update_preview(text)
 
-    def _update_preview(self, text: str) -> None:
-        self.query_one("#markdown-view", MarkdownViewer).document.update(text)
+    async def _update_preview(self, text: str) -> None:
+        await self.query_one("#markdown-view", MarkdownViewer).document.update(text)
         self.query_one("#raw-view", TextArea).text = text
 
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
-    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+    async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         item = event.item
         if isinstance(item, NoteListItem):
-            self._show_note(item.path)
+            await self._show_note(item.path)
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
+    async def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
         if isinstance(item, NoteListItem):
-            self._show_note(item.path)
+            await self._show_note(item.path)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
         if bid == "create-btn":
             self.action_new_note()
         elif bid == "save-btn":
-            self._save_new_note()
+            await self._save_new_note()
         elif bid == "cancel-btn":
             self.action_cancel_edit()
 
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
-    def action_toggle_sort(self) -> None:
+    async def action_toggle_sort(self) -> None:
         if self._is_editing():
             return
         self.sort_mode = "name" if self.sort_mode == "mtime" else "mtime"
-        self._refresh_list(self._current_path)
+        await self._refresh_list(self._current_path)
 
     def action_toggle_render(self) -> None:
         if self._is_editing():
@@ -215,15 +215,19 @@ class SecondBrainApp(App):
         else:
             self.query_one("#raw-view").remove_class("hidden")
 
-    def _save_new_note(self) -> None:
+    async def _save_new_note(self) -> None:
         title = self.query_one("#title-input", Input).value.strip()
         body = self.query_one("#body-editor", TextArea).text
         if not title:
             self.notify("Title is required to save a note.", severity="warning")
             return
-        path = create_note(title, self.base_dir, body=body or None)
+        try:
+            path = create_note(title, self.base_dir, body=body or None)
+        except OSError as exc:
+            self.notify(f"Failed to save note: {exc}", severity="error")
+            return
         self._exit_edit_mode()
-        self._refresh_list(select_path=path)
+        await self._refresh_list(select_path=path)
 
 
 def run_tui(base_dir: Path | None = None) -> None:

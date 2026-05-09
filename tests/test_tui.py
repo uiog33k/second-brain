@@ -63,6 +63,17 @@ async def test_tui_initial_selection_loads_into_raw_view(tmp_path):
         assert "body-a" in raw.text
 
 
+async def test_tui_initial_selection_loads_into_markdown_view(tmp_path):
+    """Rendered pane must actually receive the note body, not just the raw view."""
+    _write_note(tmp_path, "2026-03-22-a.md", "# A\nbody-a\n")
+
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        md = app.query_one("#markdown-view", MarkdownViewer)
+        assert "body-a" in md.document.source
+
+
 # ---------------------------------------------------------------------------
 # Sort toggle
 # ---------------------------------------------------------------------------
@@ -190,6 +201,31 @@ async def test_tui_save_with_empty_title_warns_and_skips(tmp_path):
         assert not app.query_one("#edit-form").has_class("hidden")
 
 
+async def test_tui_save_handles_oserror_and_keeps_form(tmp_path, monkeypatch):
+    """If create_note raises OSError, the form should stay open and the user keeps their draft."""
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        app.query_one("#title-input", Input).value = "My note"
+        app.query_one("#body-editor", TextArea).text = "important draft"
+
+        def boom(*args, **kwargs):
+            raise PermissionError("disk full")
+
+        monkeypatch.setattr("second_brain.tui.create_note", boom)
+
+        await pilot.click("#save-btn")
+        await pilot.pause()
+
+        assert list(tmp_path.glob("*.md")) == []
+        # form is still visible so the draft is preserved
+        assert not app.query_one("#edit-form").has_class("hidden")
+        assert app.query_one("#title-input", Input).value == "My note"
+        assert app.query_one("#body-editor", TextArea).text == "important draft"
+
+
 async def test_tui_create_button_enters_edit_mode(tmp_path):
     app = SecondBrainApp(base_dir=tmp_path)
     async with app.run_test() as pilot:
@@ -214,7 +250,7 @@ async def test_tui_sort_toggle_ignored_while_editing(tmp_path):
         before = app.sort_mode
         # 's' should be swallowed by the Input, but action_toggle_sort is also
         # guarded — invoke it directly to verify the guard.
-        app.action_toggle_sort()
+        await app.action_toggle_sort()
         assert app.sort_mode == before
 
 

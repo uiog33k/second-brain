@@ -70,7 +70,7 @@ def new(title: str, content: str | None, from_file: Path | None):
 
 
 @cli.command("list")
-def list_notes():
+def list_cmd():
     """List all notes in the notes directory."""
     base_dir = Path(
         os.environ.get("SECOND_BRAIN_DIR", str(Path.home() / "second_brain"))
