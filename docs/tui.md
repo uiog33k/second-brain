@@ -17,19 +17,20 @@ scripting and automation.
 
 ```
 ┌─────────────────┬──────────────────────────────────┐
-│ Notes list      │ Markdown viewer / editor         │
+│ Notes list      │                         [ Edit ] │
+│   ...           │ Markdown viewer / editor         │
 │   ...           │                                  │
 │   ...           │ (rendered markdown of the        │
-│   ...           │  selected note by default)       │
-│                 │                                  │
+│                 │  selected note by default)       │
 │ [ Create ]      │                                  │
 └─────────────────┴──────────────────────────────────┘
 ```
 
 - **Left sidebar:** scrollable list of notes with a **Create** button pinned at
   the bottom.
-- **Right pane:** rendered markdown view of the highlighted note. A keybinding
-  toggles to a raw text view that shows exactly what is on disk.
+- **Right pane:** rendered markdown view of the highlighted note, with an
+  **Edit** button at the top that opens the highlighted note in the editor.
+  A keybinding toggles to a raw text view that shows exactly what is on disk.
 
 The TUI reads notes from `SECOND_BRAIN_DIR` (default `~/second_brain`), the
 same directory used by the CLI.
@@ -43,8 +44,9 @@ same directory used by the CLI.
 | `s`       | Toggle sort order: newest-first by mtime ↔ alphabetical by name. |
 | `r`       | Toggle preview: rendered markdown ↔ raw text.                    |
 | `n`       | Start a new note (same as clicking **Create**).                   |
+| `e`       | Edit the highlighted note (same as clicking **Edit**).            |
 | `Escape`  | Cancel the current edit and return to the previous selection.     |
-| `q`       | Quit the TUI.                                                     |
+| `q`       | Quit the TUI (prompts to confirm if there are unsaved edits).     |
 
 ## Creating a note
 
@@ -62,9 +64,26 @@ saving, the new note appears in the sidebar and is selected automatically.
 `Cancel` (or pressing `Escape`) discards the draft and returns to the previous
 view without writing anything to disk.
 
+## Editing an existing note
+
+Pressing `e` (or clicking **Edit**) loads the highlighted note's full file
+contents into the body editor. The title input is hidden in this mode — the
+heading is part of the file contents you are editing, so you can change it
+directly. The filename is **not** renamed even if you change the heading.
+
+`Save` rewrites the same file in place via `notes.update_note` and stamps a
+`modified: <iso-timestamp>` line right after the creation timestamp (or
+replaces the existing one on subsequent saves). The original creation
+timestamp is preserved.
+
+`Cancel` (or `Escape`) discards the edit silently and returns to the viewer.
+
+If you press `q` while you have unsaved edits, a **Discard unsaved changes?**
+modal appears so you do not accidentally lose work.
+
 ## Out of scope
 
-The TUI is currently view + create only. Editing existing notes, deleting
-notes, search/filter, and tag/folder navigation are all explicitly out of
-scope for this version — use the underlying markdown files directly if you
-need those operations.
+The TUI currently supports view, create, and edit. Renaming files, deleting
+notes, search/filter, conflict detection (when files change on disk during
+editing), and tag/folder navigation are all explicitly out of scope — use
+the underlying markdown files directly if you need those operations.

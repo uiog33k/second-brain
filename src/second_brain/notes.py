@@ -65,6 +65,51 @@ def create_note(
     return path.resolve()
 
 
+_MODIFIED_LINE_RE = re.compile(r"^modified:.*$", re.MULTILINE)
+_CREATION_TS_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[ \t]*$", re.MULTILINE
+)
+
+
+def update_note(path: Path, content: str, now: datetime | None = None) -> Path:
+    """Rewrite ``path`` with ``content`` and stamp a ``modified:`` line.
+
+    The filename is preserved. If ``content`` already contains a
+    ``modified: <iso>`` line, its timestamp is replaced; otherwise a new
+    line is inserted right after the first ISO creation-timestamp line
+    found, or appended at the end if no such line exists.
+
+    Args:
+        path: Existing note file to overwrite.
+        content: Full file contents to write back. Heading and creation
+            timestamp are part of this string — the caller controls them.
+        now: Optional fixed timestamp for the ``modified`` field; defaults
+            to ``datetime.now()``.
+
+    Returns:
+        Absolute path to the updated note file.
+    """
+    now = now or datetime.now()
+    iso = now.replace(microsecond=0).isoformat()
+    modified_line = f"modified: {iso}"
+
+    if _MODIFIED_LINE_RE.search(content):
+        new_content = _MODIFIED_LINE_RE.sub(modified_line, content, count=1)
+    else:
+        match = _CREATION_TS_RE.search(content)
+        if match:
+            insert_at = match.end()
+            new_content = (
+                content[:insert_at] + "\n" + modified_line + content[insert_at:]
+            )
+        else:
+            trimmed = content.rstrip("\n")
+            new_content = f"{trimmed}\n\n{modified_line}\n"
+
+    path.write_text(new_content, encoding="utf-8")
+    return path.resolve()
+
+
 def list_notes(base_dir: Path, sort: SortMode = "mtime") -> list[Path]:
     """Return markdown notes in ``base_dir`` ordered by ``sort``.
 
