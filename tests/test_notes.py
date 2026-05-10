@@ -294,6 +294,37 @@ def test_update_note_appends_modified_when_no_timestamp_line(tmp_path):
     assert "no timestamp here" in text
 
 
+def test_update_note_preserves_trailing_newline(tmp_path):
+    """Updated file must still end with a newline (POSIX text-file convention)."""
+    original = create_note("Stub", tmp_path, now=FIXED_NOW)
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert text.endswith("\n")
+
+
+def test_update_note_preserves_blank_line_before_body(tmp_path):
+    """The blank line between the header block and the body must remain intact."""
+    original = create_note("Test", tmp_path, now=FIXED_NOW, body="paragraph one")
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    # body line is preceded by a blank line, not glued to the modified line
+    assert "\n\nparagraph one\n" in text
+
+
+def test_update_note_replaces_modified_line_with_multi_token_value(tmp_path):
+    """A pre-existing modified line with extra tokens must still be replaced (not duplicated)."""
+    p = tmp_path / "freeform.md"
+    p.write_text(
+        "# Manual\n\n2026-01-01T00:00:00\nmodified: 2026-01-02T00:00:00 (manual edit)\n\nbody\n",
+        encoding="utf-8",
+    )
+    update_note(p, p.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = p.read_text(encoding="utf-8")
+    assert text.count("modified:") == 1
+    assert "modified: 2026-05-10T09:15:00" in text
+    assert "(manual edit)" not in text
+
+
 def test_list_notes_mtime_sort_newest_first(tmp_path):
     import os
     import time

@@ -65,8 +65,10 @@ def create_note(
     return path.resolve()
 
 
-_MODIFIED_LINE_RE = re.compile(r"^modified:\s*\S+\s*$", re.MULTILINE)
-_CREATION_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s*$", re.MULTILINE)
+_MODIFIED_LINE_RE = re.compile(r"^modified:.*$", re.MULTILINE)
+_CREATION_TS_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[ \t]*$", re.MULTILINE
+)
 
 
 def update_note(path: Path, content: str, now: datetime | None = None) -> Path:

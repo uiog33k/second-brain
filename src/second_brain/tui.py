@@ -129,6 +129,7 @@ class SecondBrainApp(App):
         self._current_path: Path | None = None
         self._editing_path: Path | None = None
         self._dirty_baseline: str | None = None
+        self._suppress_highlight_guard = False
 
     # ------------------------------------------------------------------
     # Composition
@@ -200,13 +201,19 @@ class SecondBrainApp(App):
     # ------------------------------------------------------------------
     async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         item = event.item
-        if isinstance(item, NoteListItem):
-            await self._show_note(item.path)
+        if not isinstance(item, NoteListItem):
+            return
+        if self._guard_navigation(item.path):
+            return
+        await self._show_note(item.path)
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
-        if isinstance(item, NoteListItem):
-            await self._show_note(item.path)
+        if not isinstance(item, NoteListItem):
+            return
+        if self._guard_navigation(item.path):
+            return
+        await self._show_note(item.path)
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -242,6 +249,14 @@ class SecondBrainApp(App):
             raw.remove_class("hidden")
 
     def action_new_note(self) -> None:
+        if self._is_editing() and self._is_dirty():
+
+            def _on_choice(should_discard: bool | None) -> None:
+                if should_discard:
+                    self._enter_create_mode()
+
+            self.push_screen(ConfirmDiscardScreen(), callback=_on_choice)
+            return
         self._enter_create_mode()
 
     def action_edit_note(self) -> None:
@@ -269,6 +284,48 @@ class SecondBrainApp(App):
     # ------------------------------------------------------------------
     def _is_editing(self) -> bool:
         return not self.query_one("#edit-form").has_class("hidden")
+
+    def _guard_navigation(self, path: Path) -> bool:
+        """Intercept a list-view switch when editing.
+
+        Returns True if the navigation was intercepted (caller should not
+        proceed). The guard short-circuits when not editing, when the
+        target is the note already being edited, or when the suppression
+        flag is set (used while restoring the highlight).
+        """
+        if self._suppress_highlight_guard:
+            return False
+        if not self._is_editing():
+            return False
+        if self._editing_path is not None and self._editing_path == path:
+            return False
+        if not self._is_dirty():
+            # Clean edit: silently leave edit mode and let caller load new note.
+            self._exit_edit_mode()
+            return False
+
+        def _on_choice(should_discard: bool | None) -> None:
+            if should_discard:
+                self._exit_edit_mode()
+                self.run_worker(self._show_note(path), exclusive=False)
+            else:
+                self._restore_editing_highlight()
+
+        self.push_screen(ConfirmDiscardScreen(), callback=_on_choice)
+        return True
+
+    def _restore_editing_highlight(self) -> None:
+        if self._editing_path is None:
+            return
+        list_view = self.query_one("#notes-list", ListView)
+        for i, child in enumerate(list_view.children):
+            if isinstance(child, NoteListItem) and child.path == self._editing_path:
+                self._suppress_highlight_guard = True
+                try:
+                    list_view.index = i
+                finally:
+                    self._suppress_highlight_guard = False
+                return
 
     def _is_dirty(self) -> bool:
         if self._dirty_baseline is None:

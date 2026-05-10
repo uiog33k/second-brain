@@ -372,6 +372,133 @@ async def test_tui_quit_clean_does_not_show_modal(tmp_path):
             assert not isinstance(screen, ConfirmDiscardScreen)
 
 
+async def test_tui_switch_note_while_dirty_shows_modal(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    _write_note(tmp_path, "b.md", "# B\n\n2026-01-01T00:00:00\n\nbody-b\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        list_view = app.query_one("#notes-list", ListView)
+        await pilot.press("e")
+        await pilot.pause()
+        body_editor = app.query_one("#body-editor", TextArea)
+        body_editor.text = body_editor.text + "dirty edit"
+
+        original_idx = list_view.index
+        target_idx = 1 if original_idx == 0 else 0
+        list_view.index = target_idx
+        await pilot.pause()
+
+        assert len(app.screen_stack) == 2
+        assert isinstance(app.screen_stack[-1], ConfirmDiscardScreen)
+
+
+async def test_tui_switch_note_while_dirty_keep_restores_index(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    _write_note(tmp_path, "b.md", "# B\n\n2026-01-01T00:00:00\n\nbody-b\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        list_view = app.query_one("#notes-list", ListView)
+        await pilot.press("e")
+        await pilot.pause()
+        original_idx = list_view.index
+        body_editor = app.query_one("#body-editor", TextArea)
+        body_editor.text = body_editor.text + "dirty"
+
+        target_idx = 1 if original_idx == 0 else 0
+        list_view.index = target_idx
+        await pilot.pause()
+
+        await pilot.click("#keep-btn")
+        await pilot.pause()
+
+        assert not app.query_one("#edit-form").has_class("hidden")
+        assert list_view.index == original_idx
+        assert "dirty" in app.query_one("#body-editor", TextArea).text
+
+
+async def test_tui_switch_note_while_dirty_discard_loads_new_note(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    _write_note(tmp_path, "b.md", "# B\n\n2026-01-01T00:00:00\n\nbody-b\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        list_view = app.query_one("#notes-list", ListView)
+        await pilot.press("e")
+        await pilot.pause()
+        original_idx = list_view.index
+        body_editor = app.query_one("#body-editor", TextArea)
+        body_editor.text = body_editor.text + "dirty"
+
+        target_idx = 1 if original_idx == 0 else 0
+        list_view.index = target_idx
+        await pilot.pause()
+
+        await pilot.click("#discard-btn")
+        await pilot.pause()
+
+        assert app.query_one("#edit-form").has_class("hidden")
+        assert list_view.index == target_idx
+
+
+async def test_tui_new_note_while_dirty_shows_modal(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        body_editor = app.query_one("#body-editor", TextArea)
+        body_editor.text = body_editor.text + "dirty"
+
+        app.action_new_note()
+        await pilot.pause()
+
+        assert len(app.screen_stack) == 2
+        assert isinstance(app.screen_stack[-1], ConfirmDiscardScreen)
+
+
+async def test_tui_new_note_while_dirty_keep_preserves_draft(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        body_editor = app.query_one("#body-editor", TextArea)
+        before = body_editor.text + "dirty"
+        body_editor.text = before
+
+        app.action_new_note()
+        await pilot.pause()
+        await pilot.click("#keep-btn")
+        await pilot.pause()
+
+        assert not app.query_one("#edit-form").has_class("hidden")
+        assert app.query_one("#title-input", Input).has_class("hidden")
+        assert app.query_one("#body-editor", TextArea).text == before
+
+
+async def test_tui_new_note_while_dirty_discard_clears_form(tmp_path):
+    _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n\nbody-a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        body_editor = app.query_one("#body-editor", TextArea)
+        body_editor.text = body_editor.text + "dirty"
+
+        app.action_new_note()
+        await pilot.pause()
+        await pilot.click("#discard-btn")
+        await pilot.pause()
+
+        assert not app.query_one("#title-input", Input).has_class("hidden")
+        assert app.query_one("#body-editor", TextArea).text == ""
+
+
 async def test_confirm_discard_screen_buttons_dismiss_with_value(tmp_path):
     """The modal returns True for Discard, False for Keep editing."""
     _write_note(tmp_path, "a.md", "# A\n\n2026-01-01T00:00:00\n")
