@@ -12,8 +12,9 @@ uv sync
 
 ## Usage
 
-Running with no arguments launches an interactive Textual TUI for browsing
-notes and creating new ones (see `docs/tui.md`):
+Running with no arguments launches an interactive Textual TUI for browsing,
+creating, and editing notes (see `docs/tui.md`). Press `n` to start a new
+note or `e` to edit the highlighted one.
 
 ```bash
 uv run second_brain

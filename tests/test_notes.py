@@ -4,7 +4,13 @@ from datetime import date, datetime
 
 import pytest
 
-from second_brain.notes import build_note_path, create_note, list_notes, slugify
+from second_brain.notes import (
+    build_note_path,
+    create_note,
+    list_notes,
+    slugify,
+    update_note,
+)
 
 # ---------------------------------------------------------------------------
 # slugify
@@ -188,6 +194,104 @@ def test_list_notes_alpha_sort(tmp_path):
         "2026-03-21-b.md",
         "2026-03-22-c.md",
     ]
+
+
+# ---------------------------------------------------------------------------
+# update_note
+# ---------------------------------------------------------------------------
+
+
+EDIT_NOW = datetime(2026, 5, 10, 9, 15, 0)
+
+
+def test_update_note_returns_same_path(tmp_path):
+    """The filename must not change on update."""
+    original = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    new_content = original.read_text(encoding="utf-8") + "\nadded line\n"
+    result = update_note(original, new_content, now=EDIT_NOW)
+    assert result == original.resolve()
+
+
+def test_update_note_preserves_creation_timestamp(tmp_path):
+    """The original ISO timestamp must remain in the file after update."""
+    original = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    content = original.read_text(encoding="utf-8")
+    update_note(original, content, now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "2026-03-22T14:30:00" in text
+
+
+def test_update_note_inserts_modified_line_when_absent(tmp_path):
+    """First save adds a 'modified: <iso>' line right after the creation timestamp."""
+    original = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    content = original.read_text(encoding="utf-8")
+    update_note(original, content, now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "modified: 2026-05-10T09:15:00" in text
+    # creation timestamp line precedes the modified line
+    creation_idx = text.index("2026-03-22T14:30:00")
+    modified_idx = text.index("modified: 2026-05-10T09:15:00")
+    assert creation_idx < modified_idx
+
+
+def test_update_note_replaces_existing_modified_line(tmp_path):
+    """Subsequent saves replace the existing 'modified: …' line (not duplicate)."""
+    original = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    content = original.read_text(encoding="utf-8")
+    update_note(original, content, now=EDIT_NOW)
+    later = datetime(2026, 5, 11, 10, 0, 0)
+    update_note(original, original.read_text(encoding="utf-8"), now=later)
+    text = original.read_text(encoding="utf-8")
+    assert text.count("modified:") == 1
+    assert "modified: 2026-05-11T10:00:00" in text
+    assert "modified: 2026-05-10T09:15:00" not in text
+
+
+def test_update_note_writes_supplied_body(tmp_path):
+    """Edits to the body must be reflected in the file."""
+    original = create_note("Test idea", tmp_path, now=FIXED_NOW, body="old body")
+    new = "# Test idea\n\n2026-03-22T14:30:00\n\nbrand new body line\n"
+    update_note(original, new, now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "brand new body line" in text
+    assert "old body" not in text
+
+
+def test_update_note_writes_edited_title(tmp_path):
+    """Editing the heading inside the body editor is persisted."""
+    original = create_note("Old title", tmp_path, now=FIXED_NOW)
+    new = "# New title\n\n2026-03-22T14:30:00\n"
+    update_note(original, new, now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "# New title" in text
+    assert "# Old title" not in text
+
+
+def test_update_note_returns_absolute_path(tmp_path):
+    original = create_note("Test", tmp_path, now=FIXED_NOW)
+    result = update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    assert result.is_absolute()
+
+
+def test_update_note_round_trip(tmp_path):
+    """Read → update with same content → read is a stable round trip apart from modified line."""
+    original = create_note("Stable", tmp_path, now=FIXED_NOW)
+    before = original.read_text(encoding="utf-8")
+    update_note(original, before, now=EDIT_NOW)
+    after = original.read_text(encoding="utf-8")
+    # everything from the original is still there
+    for line in before.splitlines():
+        assert line in after
+
+
+def test_update_note_appends_modified_when_no_timestamp_line(tmp_path):
+    """If the body has no recognizable creation-timestamp line, append the modified line."""
+    p = tmp_path / "freeform.md"
+    p.write_text("# Freeform\n\nno timestamp here\n", encoding="utf-8")
+    update_note(p, p.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = p.read_text(encoding="utf-8")
+    assert "modified: 2026-05-10T09:15:00" in text
+    assert "no timestamp here" in text
 
 
 def test_list_notes_mtime_sort_newest_first(tmp_path):

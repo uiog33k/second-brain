@@ -12,6 +12,7 @@ from pathlib import Path
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
     Footer,
@@ -21,10 +22,11 @@ from textual.widgets import (
     ListItem,
     ListView,
     MarkdownViewer,
+    Static,
     TextArea,
 )
 
-from second_brain.notes import SortMode, create_note, list_notes
+from second_brain.notes import SortMode, create_note, list_notes, update_note
 
 
 def _resolve_base_dir() -> Path:
@@ -39,6 +41,49 @@ class NoteListItem(ListItem):
     def __init__(self, path: Path) -> None:
         super().__init__(Label(path.name))
         self.path = path
+
+
+class ConfirmDiscardScreen(ModalScreen[bool]):
+    """Modal that asks the user whether to discard unsaved edits."""
+
+    CSS = """
+    ConfirmDiscardScreen {
+        align: center middle;
+    }
+    #confirm-dialog {
+        width: 60;
+        height: auto;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    #confirm-message { padding-bottom: 1; }
+    #confirm-buttons { height: 3; align-horizontal: right; }
+    #confirm-buttons Button { margin: 0 1; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "keep", "Keep editing", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-dialog"):
+            yield Static(
+                "Discard unsaved changes?",
+                id="confirm-message",
+            )
+            with Horizontal(id="confirm-buttons"):
+                yield Button("Discard", id="discard-btn", variant="error")
+                yield Button("Keep editing", id="keep-btn", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "discard-btn":
+            self.dismiss(True)
+        elif event.button.id == "keep-btn":
+            self.dismiss(False)
+
+    def action_keep(self) -> None:
+        self.dismiss(False)
 
 
 class SecondBrainApp(App):
@@ -56,6 +101,8 @@ class SecondBrainApp(App):
     #notes-list { height: 1fr; }
     #create-btn { width: 100%; height: 3; }
     #right-pane { width: 1fr; height: 1fr; }
+    #viewer-buttons { height: 3; align-horizontal: right; }
+    #viewer-buttons Button { margin: 0 1; }
     #raw-view { height: 1fr; }
     #edit-form { height: 1fr; }
     #title-input { height: 3; }
@@ -69,6 +116,7 @@ class SecondBrainApp(App):
         Binding("s", "toggle_sort", "Sort"),
         Binding("r", "toggle_render", "Raw/Rendered"),
         Binding("n", "new_note", "New"),
+        Binding("e", "edit_note", "Edit"),
         Binding("escape", "cancel_edit", "Cancel", show=False),
         Binding("q", "quit", "Quit"),
     ]
@@ -79,6 +127,8 @@ class SecondBrainApp(App):
         self.sort_mode: SortMode = "mtime"
         self.render_markdown = True
         self._current_path: Path | None = None
+        self._editing_path: Path | None = None
+        self._dirty_baseline: str | None = None
 
     # ------------------------------------------------------------------
     # Composition
@@ -90,6 +140,8 @@ class SecondBrainApp(App):
                 yield ListView(id="notes-list")
                 yield Button("Create", id="create-btn", variant="primary")
             with Vertical(id="right-pane"):
+                with Horizontal(id="viewer-buttons"):
+                    yield Button("Edit", id="edit-btn")
                 yield MarkdownViewer(
                     "",
                     id="markdown-view",
@@ -160,8 +212,10 @@ class SecondBrainApp(App):
         bid = event.button.id
         if bid == "create-btn":
             self.action_new_note()
+        elif bid == "edit-btn":
+            self.action_edit_note()
         elif bid == "save-btn":
-            await self._save_new_note()
+            await self._save_edit()
         elif bid == "cancel-btn":
             self.action_cancel_edit()
 
@@ -188,11 +242,27 @@ class SecondBrainApp(App):
             raw.remove_class("hidden")
 
     def action_new_note(self) -> None:
-        self._enter_edit_mode()
+        self._enter_create_mode()
+
+    def action_edit_note(self) -> None:
+        if self._current_path is None:
+            return
+        self._enter_edit_existing_mode(self._current_path)
 
     def action_cancel_edit(self) -> None:
         if self._is_editing():
             self._exit_edit_mode()
+
+    async def action_quit(self) -> None:
+        if self._is_editing() and self._is_dirty():
+
+            def _on_choice(should_discard: bool | None) -> None:
+                if should_discard:
+                    self.exit()
+
+            self.push_screen(ConfirmDiscardScreen(), callback=_on_choice)
+            return
+        self.exit()
 
     # ------------------------------------------------------------------
     # Edit mode
@@ -200,20 +270,72 @@ class SecondBrainApp(App):
     def _is_editing(self) -> bool:
         return not self.query_one("#edit-form").has_class("hidden")
 
-    def _enter_edit_mode(self) -> None:
-        self.query_one("#title-input", Input).value = ""
-        self.query_one("#body-editor", TextArea).text = ""
+    def _is_dirty(self) -> bool:
+        if self._dirty_baseline is None:
+            return False
+        body_editor = self.query_one("#body-editor", TextArea)
+        title_input = self.query_one("#title-input", Input)
+        current = body_editor.text
+        if not title_input.has_class("hidden"):
+            current = f"{title_input.value}\x00{current}"
+        return current != self._dirty_baseline
+
+    def _snapshot_baseline(self) -> None:
+        body_editor = self.query_one("#body-editor", TextArea)
+        title_input = self.query_one("#title-input", Input)
+        baseline = body_editor.text
+        if not title_input.has_class("hidden"):
+            baseline = f"{title_input.value}\x00{baseline}"
+        self._dirty_baseline = baseline
+
+    def _enter_create_mode(self) -> None:
+        self._editing_path = None
+        title_input = self.query_one("#title-input", Input)
+        body_editor = self.query_one("#body-editor", TextArea)
+        title_input.value = ""
+        title_input.remove_class("hidden")
+        body_editor.text = ""
         self.query_one("#markdown-view").add_class("hidden")
         self.query_one("#raw-view").add_class("hidden")
+        self.query_one("#viewer-buttons").add_class("hidden")
         self.query_one("#edit-form").remove_class("hidden")
-        self.query_one("#title-input", Input).focus()
+        self._snapshot_baseline()
+        title_input.focus()
+
+    def _enter_edit_existing_mode(self, path: Path) -> None:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            self.notify(f"Failed to open note: {exc}", severity="error")
+            return
+        self._editing_path = path
+        title_input = self.query_one("#title-input", Input)
+        body_editor = self.query_one("#body-editor", TextArea)
+        title_input.value = ""
+        title_input.add_class("hidden")
+        body_editor.text = text
+        self.query_one("#markdown-view").add_class("hidden")
+        self.query_one("#raw-view").add_class("hidden")
+        self.query_one("#viewer-buttons").add_class("hidden")
+        self.query_one("#edit-form").remove_class("hidden")
+        self._snapshot_baseline()
+        body_editor.focus()
 
     def _exit_edit_mode(self) -> None:
+        self._editing_path = None
+        self._dirty_baseline = None
         self.query_one("#edit-form").add_class("hidden")
+        self.query_one("#viewer-buttons").remove_class("hidden")
         if self.render_markdown:
             self.query_one("#markdown-view").remove_class("hidden")
         else:
             self.query_one("#raw-view").remove_class("hidden")
+
+    async def _save_edit(self) -> None:
+        if self._editing_path is not None:
+            await self._save_existing_note()
+        else:
+            await self._save_new_note()
 
     async def _save_new_note(self) -> None:
         title = self.query_one("#title-input", Input).value.strip()
@@ -223,6 +345,17 @@ class SecondBrainApp(App):
             return
         try:
             path = create_note(title, self.base_dir, body=body or None)
+        except OSError as exc:
+            self.notify(f"Failed to save note: {exc}", severity="error")
+            return
+        self._exit_edit_mode()
+        await self._refresh_list(select_path=path)
+
+    async def _save_existing_note(self) -> None:
+        assert self._editing_path is not None
+        content = self.query_one("#body-editor", TextArea).text
+        try:
+            path = update_note(self._editing_path, content)
         except OSError as exc:
             self.notify(f"Failed to save note: {exc}", severity="error")
             return
