@@ -26,6 +26,14 @@ uv tool install --editable . --link-mode=copy
 
 Or set it once for the session: `$env:UV_LINK_MODE = "copy"`.
 
+If uv fails with `invalid peer certificate: UnknownIssuer` (common behind
+corporate TLS-inspecting proxies), add `--system-certs` so uv uses the
+Windows certificate store:
+
+```powershell
+uv tool install --editable . --link-mode=copy --system-certs
+```
+
 ## Usage
 
 Running with no arguments launches an interactive Textual TUI for browsing,
