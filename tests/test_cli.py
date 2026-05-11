@@ -147,7 +147,7 @@ def test_cli_new_single_tag_writes_frontmatter(tmp_note_dir):
     assert result.exit_code == 0
     md_file = next(tmp_note_dir.glob("*.md"))
     text = md_file.read_text(encoding="utf-8")
-    assert "tags: [work]" in text
+    assert "tags:\n  - work\n" in text
 
 
 def test_cli_new_multiple_tags(tmp_note_dir):
@@ -155,7 +155,7 @@ def test_cli_new_multiple_tags(tmp_note_dir):
     assert result.exit_code == 0
     md_file = next(tmp_note_dir.glob("*.md"))
     text = md_file.read_text(encoding="utf-8")
-    assert "tags: [work, planning]" in text
+    assert "tags:\n  - work\n  - planning\n" in text
 
 
 def test_cli_new_tag_strips_hash(tmp_note_dir):
@@ -163,7 +163,15 @@ def test_cli_new_tag_strips_hash(tmp_note_dir):
     assert result.exit_code == 0
     md_file = next(tmp_note_dir.glob("*.md"))
     text = md_file.read_text(encoding="utf-8")
-    assert "tags: [work]" in text
+    assert "tags:\n  - work\n" in text
+
+
+def test_cli_new_dedupes_tags(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "T", "-t", "work", "-t", "Work"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert text.count("- work") == 1
 
 
 def test_cli_new_no_tags_no_tags_key(tmp_note_dir):

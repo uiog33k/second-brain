@@ -73,13 +73,19 @@ Produces:
 ```markdown
 ---
 created: 2026-05-11T10:30:00
-tags: [work, planning]
+tags:
+  - work
+  - planning
 ---
 
 # Project kickoff
 ```
 
-When no `-t` is given, the `tags:` line is omitted but the frontmatter
+Tags are emitted in YAML block style — the same shape Obsidian's
+"Add property" UI writes — so strict YAML consumers parse every value
+as a string regardless of content (`2026`, `true`, `null`, …).
+
+When no `-t` is given, the `tags:` key is omitted but the frontmatter
 block (with `created:`) is still written.
 
 ### Normalization
@@ -87,14 +93,22 @@ block (with `created:`) is still written.
 Each tag is normalized so Obsidian and YAML can parse it cleanly:
 
 1. Leading/trailing whitespace stripped, then leading `#` stripped.
-2. Whitespace and YAML-flow-unsafe characters (`, : [ ] { } " '`)
-   replaced with `-`.
+2. Whitespace and YAML indicator characters
+   (`, : [ ] { } " ' # & * ! | > % @ ` ``) replaced with `-`.
 3. Runs of `-` collapsed; leading/trailing `-` trimmed.
 4. Lower-cased.
+5. Duplicates (after normalization) dropped, first occurrence wins.
 
-So `-t '#My Project' -t '#work'` becomes `tags: [my-project, work]`.
+So `-t '#My Project' -t '#work' -t Work` becomes:
+
+```yaml
+tags:
+  - my-project
+  - work
+```
+
 Tags that normalize to empty are dropped; if all of them drop, no
-`tags:` line is emitted.
+`tags:` key is emitted.
 
 ## Environment Variables
 

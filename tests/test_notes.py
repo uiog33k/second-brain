@@ -64,6 +64,16 @@ def test_slugify(title, expected):
         ("#", ""),
         ("   ", ""),
         ("--leading--", "leading"),
+        # additional YAML-indicator characters
+        ("foo#bar", "foo-bar"),
+        ("foo&bar", "foo-bar"),
+        ("foo*bar", "foo-bar"),
+        ("foo!bar", "foo-bar"),
+        ("foo|bar", "foo-bar"),
+        ("foo>bar", "foo-bar"),
+        ("foo%bar", "foo-bar"),
+        ("foo@bar", "foo-bar"),
+        ("foo`bar", "foo-bar"),
     ],
 )
 def test_normalize_tag(raw, expected):
@@ -136,25 +146,34 @@ def test_create_note_no_tags_omits_tags_key(tmp_path):
 def test_create_note_single_tag(tmp_path):
     path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work"])
     text = path.read_text()
-    assert "tags: [work]" in text
+    assert "tags:\n  - work\n" in text
 
 
 def test_create_note_multiple_tags_preserve_order(tmp_path):
     path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work", "planning"])
     text = path.read_text()
-    assert "tags: [work, planning]" in text
+    assert "tags:\n  - work\n  - planning\n" in text
 
 
 def test_create_note_tags_normalized(tmp_path):
     path = create_note("T", tmp_path, now=FIXED_NOW, tags=["#Work", "my project"])
     text = path.read_text()
-    assert "tags: [work, my-project]" in text
+    assert "tags:\n  - work\n  - my-project\n" in text
 
 
 def test_create_note_all_empty_tags_dropped(tmp_path):
     path = create_note("T", tmp_path, now=FIXED_NOW, tags=["#", "   "])
     text = path.read_text()
     assert "tags:" not in text
+
+
+def test_create_note_dedupes_tags_preserve_first_occurrence(tmp_path):
+    path = create_note(
+        "T", tmp_path, now=FIXED_NOW, tags=["work", "Work", "planning", "work"]
+    )
+    text = path.read_text()
+    assert "tags:\n  - work\n  - planning\n" in text
+    assert text.count("- work") == 1
 
 
 def test_create_note_heading_follows_frontmatter(tmp_path):
@@ -178,9 +197,15 @@ def test_create_note_stub_exact_shape(tmp_path):
 def test_create_note_with_tags_exact_shape(tmp_path):
     path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work", "planning"])
     text = path.read_text(encoding="utf-8")
-    assert (
-        text
-        == "---\ncreated: 2026-03-22T14:30:00\ntags: [work, planning]\n---\n\n# T\n"
+    assert text == (
+        "---\n"
+        "created: 2026-03-22T14:30:00\n"
+        "tags:\n"
+        "  - work\n"
+        "  - planning\n"
+        "---\n"
+        "\n"
+        "# T\n"
     )
 
 
@@ -440,7 +465,7 @@ def test_update_note_preserves_tags_across_update(tmp_path):
     )
     update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
     text = original.read_text(encoding="utf-8")
-    assert "tags: [work, planning]" in text
+    assert "tags:\n  - work\n  - planning\n" in text
 
 
 def test_update_note_legacy_file_no_frontmatter_unchanged_shape(tmp_path):

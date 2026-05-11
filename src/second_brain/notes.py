@@ -19,7 +19,7 @@ def slugify(title: str) -> str:
     return slug or "untitled"
 
 
-_TAG_UNSAFE_RE = re.compile(r"""[\s,:\[\]{}"']+""")
+_TAG_UNSAFE_RE = re.compile(r"""[\s,:\[\]{}"'#&*!|>%@`]+""")
 
 
 def normalize_tag(tag: str) -> str:
@@ -27,8 +27,8 @@ def normalize_tag(tag: str) -> str:
 
     Steps:
         1. Strip leading/trailing whitespace, then leading ``#``.
-        2. Replace runs of whitespace or YAML-flow-unsafe characters
-           (``, : [ ] { } " '``) with ``-``.
+        2. Replace runs of whitespace or YAML indicator characters
+           (``, : [ ] { } " ' # & * ! | > % @ ```) with ``-``.
         3. Collapse runs of ``-`` and trim leading/trailing ``-``.
         4. Lower-case.
 
@@ -92,9 +92,12 @@ def create_note(
 
     fm_lines = [f"created: {timestamp}"]
     if tags:
-        clean = [t for t in (normalize_tag(t) for t in tags) if t]
+        clean = list(
+            dict.fromkeys(t for t in (normalize_tag(t) for t in tags) if t)
+        )
         if clean:
-            fm_lines.append(f"tags: [{', '.join(clean)}]")
+            fm_lines.append("tags:")
+            fm_lines.extend(f"  - {t}" for t in clean)
     content = "---\n" + "\n".join(fm_lines) + "\n---\n\n# " + title + "\n"
     if body:
         content = f"{content}\n{body}\n"

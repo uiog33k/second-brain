@@ -75,15 +75,18 @@ Resulting file:
 ```markdown
 ---
 created: 2026-05-11T10:30:00
-tags: [work, planning]
+tags:
+  - work
+  - planning
 ---
 
 # Project kickoff
 ```
 
-Tags are normalized: a leading `#` is stripped, whitespace and YAML-unsafe
-characters (`, : [ ] { } " '`) become `-`, and the result is lower-cased
-(so `-t '#My Project'` becomes `my-project`).
+Tags are normalized: a leading `#` is stripped, whitespace and YAML
+indicator characters (`, : [ ] { } " ' # & * ! | > % @ ` ``) become `-`,
+duplicates are dropped (case-insensitive after normalization), and the
+result is lower-cased (so `-t '#My Project'` becomes `my-project`).
 
 With dev environment variables loaded:
 
