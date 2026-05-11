@@ -161,7 +161,8 @@ async def test_tui_create_and_save_round_trip(tmp_path):
         files = sorted(tmp_path.glob("*.md"))
         assert len(files) == 1
         text = files[0].read_text(encoding="utf-8")
-        assert text.startswith("# My new note")
+        assert text.startswith("---\n")
+        assert "\n# My new note\n" in text
         assert "this is the body" in text
 
         # edit form hidden, list shows the new note and selects it

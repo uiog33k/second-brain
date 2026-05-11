@@ -15,6 +15,7 @@ flowchart TD
 
     NEW --> NEW_C["-c / --content TEXT<br/><i>inline body</i>"]:::opt
     NEW --> NEW_F["--from-file PATH<br/><i>body from file</i>"]:::opt
+    NEW --> NEW_T["-t / --tag TAG<br/><i>repeatable; YAML frontmatter</i>"]:::opt
     NEW -. writes .-> FS[("SECOND_BRAIN_DIR<br/>~/second_brain")]:::store
     LIST -. reads .-> FS
     SHOW -. reads .-> FS

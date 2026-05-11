@@ -38,8 +38,9 @@ uv run python -m second_brain new "My brilliant idea"
 
 ## Passing body content to `new`
 
-By default `new` writes a stub note (heading + ISO timestamp). To capture
-body content in one command, pass `--content` / `-c`:
+By default `new` writes a stub note: a YAML frontmatter block (with a
+`created:` timestamp) followed by the heading. To capture body content in
+one command, pass `--content` / `-c`:
 
 ```bash
 uv run second_brain new "Quick capture" --content "the body text"
@@ -52,11 +53,66 @@ Or read the body from a file with `--from-file`:
 uv run second_brain new "Imported" --from-file path/to/source.md
 ```
 
-The body is appended below the timestamp, separated by a blank line.
+The body is appended below the heading, separated by a blank line.
 Newlines in the supplied content are preserved verbatim.
 
 If both `--content` and `--from-file` are supplied, `--content` wins and a
 warning is printed to stderr that `--from-file` was ignored.
+
+## Tags (`-t` / `--tag`)
+
+Tags are written into the YAML frontmatter so Obsidian indexes them
+natively (tag pane, Properties UI, Dataview). The flag is repeatable:
+
+```bash
+uv run second_brain new "Project kickoff" -t work -t planning
+```
+
+Produces:
+
+```markdown
+---
+created: 2026-05-11T10:30:00
+tags:
+  - work
+  - planning
+---
+
+# Project kickoff
+```
+
+Tags are emitted in YAML block style — the same shape Obsidian's
+"Add property" UI writes. Obsidian treats each entry as a tag string.
+Note that block style does not coerce scalar types: strict YAML
+parsers (PyYAML, Dataview's internal parser) will still type bare
+values like `2026`, `true`, or `null` as int/bool/null. If you need
+round-trip-safe strings in downstream tooling, avoid reserved YAML
+scalars as tag names.
+
+When no `-t` is given, the `tags:` key is omitted but the frontmatter
+block (with `created:`) is still written.
+
+### Normalization
+
+Each tag is normalized so Obsidian and YAML can parse it cleanly:
+
+1. Leading/trailing whitespace stripped, then leading `#` stripped.
+2. Whitespace and YAML indicator characters
+   (`, : [ ] { } " ' # & * ! | > % @ ` ``) replaced with `-`.
+3. Runs of `-` collapsed; leading/trailing `-` trimmed.
+4. Lower-cased.
+5. Duplicates (after normalization) dropped, first occurrence wins.
+
+So `-t '#My Project' -t '#work' -t Work` becomes:
+
+```yaml
+tags:
+  - my-project
+  - work
+```
+
+Tags that normalize to empty are dropped; if all of them drop, no
+`tags:` key is emitted.
 
 ## Environment Variables
 

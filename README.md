@@ -63,6 +63,31 @@ uv run second_brain new "Imported" --from-file path/to/source.md
 If both `--content` and `--from-file` are given, `--content` wins and a
 warning is printed to stderr.
 
+Notes are written with an Obsidian-compatible YAML frontmatter block. Use
+`-t/--tag` (repeatable) to attach tags Obsidian indexes natively:
+
+```bash
+uv run second_brain new "Project kickoff" -t work -t planning
+```
+
+Resulting file:
+
+```markdown
+---
+created: 2026-05-11T10:30:00
+tags:
+  - work
+  - planning
+---
+
+# Project kickoff
+```
+
+Tags are normalized: a leading `#` is stripped, whitespace and YAML
+indicator characters (`, : [ ] { } " ' # & * ! | > % @ ` ``) become `-`,
+duplicates are dropped (case-insensitive after normalization), and the
+result is lower-cased (so `-t '#My Project'` becomes `my-project`).
+
 With dev environment variables loaded:
 
 ```bash
