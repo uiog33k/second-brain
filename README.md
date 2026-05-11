@@ -10,6 +10,22 @@ cd second-brain
 uv sync
 ```
 
+To install `second_brain` as a global command (editable, so local edits take
+effect without reinstalling):
+
+```bash
+uv tool install --editable .
+```
+
+On Windows, if `%USERPROFILE%\.local` lives on a different drive than the
+project (uv's default hardlink mode fails across volumes), use copy mode:
+
+```powershell
+uv tool install --editable . --link-mode=copy
+```
+
+Or set it once for the session: `$env:UV_LINK_MODE = "copy"`.
+
 ## Usage
 
 Running with no arguments launches an interactive Textual TUI for browsing,
