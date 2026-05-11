@@ -82,8 +82,12 @@ tags:
 ```
 
 Tags are emitted in YAML block style — the same shape Obsidian's
-"Add property" UI writes — so strict YAML consumers parse every value
-as a string regardless of content (`2026`, `true`, `null`, …).
+"Add property" UI writes. Obsidian treats each entry as a tag string.
+Note that block style does not coerce scalar types: strict YAML
+parsers (PyYAML, Dataview's internal parser) will still type bare
+values like `2026`, `true`, or `null` as int/bool/null. If you need
+round-trip-safe strings in downstream tooling, avoid reserved YAML
+scalars as tag names.
 
 When no `-t` is given, the `tags:` key is omitted but the frontmatter
 block (with `created:`) is still written.
