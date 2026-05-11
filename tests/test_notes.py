@@ -7,6 +7,7 @@ import pytest
 from second_brain.notes import (
     build_note_path,
     create_note,
+    delete_note,
     list_notes,
     slugify,
     update_note,
@@ -323,6 +324,32 @@ def test_update_note_replaces_modified_line_with_multi_token_value(tmp_path):
     assert text.count("modified:") == 1
     assert "modified: 2026-05-10T09:15:00" in text
     assert "(manual edit)" not in text
+
+
+# ---------------------------------------------------------------------------
+# delete_note
+# ---------------------------------------------------------------------------
+
+
+def test_delete_note_removes_file(tmp_path):
+    path = create_note("Doomed", tmp_path, now=FIXED_NOW)
+    assert path.exists()
+    delete_note(path)
+    assert not path.exists()
+
+
+def test_delete_note_missing_path_raises(tmp_path):
+    missing = tmp_path / "nope.md"
+    with pytest.raises(FileNotFoundError):
+        delete_note(missing)
+
+
+def test_delete_note_does_not_touch_siblings(tmp_path):
+    keep = create_note("Keep", tmp_path, now=FIXED_NOW)
+    remove = create_note("Remove", tmp_path, now=FIXED_NOW)
+    delete_note(remove)
+    assert keep.exists()
+    assert not remove.exists()
 
 
 def test_list_notes_mtime_sort_newest_first(tmp_path):

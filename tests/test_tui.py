@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 from textual.widgets import Button, Input, ListView, MarkdownViewer, TextArea
 
-from second_brain.tui import ConfirmDiscardScreen, NoteListItem, SecondBrainApp
+from second_brain.tui import (
+    ConfirmDeleteScreen,
+    ConfirmDiscardScreen,
+    NoteListItem,
+    SecondBrainApp,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -590,3 +595,165 @@ def test_cli_subcommands_still_work(subcommand, tmp_note_dir):
     runner = CliRunner()
     result = runner.invoke(cli, [subcommand, "--help"])
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# Delete note
+# ---------------------------------------------------------------------------
+
+
+async def test_tui_delete_button_present_in_viewer(tmp_path):
+    _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        btn = app.query_one("#delete-btn", Button)
+        assert btn.variant == "error"
+        # The whole viewer-buttons row is visible in viewer mode.
+        assert not app.query_one("#viewer-buttons").has_class("hidden")
+
+
+async def test_tui_delete_button_hidden_while_editing(tmp_path):
+    _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        assert app.query_one("#viewer-buttons").has_class("hidden")
+
+
+async def test_tui_d_press_opens_confirm_delete_modal(tmp_path):
+    _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(app.screen_stack) == 2
+        assert isinstance(app.screen, ConfirmDeleteScreen)
+
+
+async def test_tui_d_press_noop_on_empty_list(tmp_path):
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        # No modal should be pushed.
+        assert len(app.screen_stack) == 1
+
+
+async def test_tui_d_press_noop_while_editing(tmp_path):
+    _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        screens_before = len(app.screen_stack)
+        # Invoke action directly — 'd' is captured by the body editor.
+        app.action_delete_note()
+        await pilot.pause()
+        assert len(app.screen_stack) == screens_before
+
+
+async def test_tui_delete_cancel_keeps_file(tmp_path):
+    p = _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.click("#cancel-delete-btn")
+        await pilot.pause()
+        assert p.exists()
+        list_view = app.query_one("#notes-list", ListView)
+        assert len(list_view) == 1
+
+
+async def test_tui_delete_confirm_removes_file_and_refreshes(tmp_path):
+    a = _write_note(tmp_path, "a.md", "# a\n")
+    time.sleep(0.01)
+    b = _write_note(tmp_path, "b.md", "# b\n")
+    # Make b newer for deterministic mtime sort (b is selected initially).
+    os.utime(a, (a.stat().st_atime, b.stat().st_mtime - 5))
+
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Currently-selected note is b (newest first under mtime sort).
+        assert app._current_path is not None
+        assert app._current_path.name == "b.md"
+
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.click("#confirm-delete-btn")
+        await pilot.pause()
+
+        assert not b.exists()
+        assert a.exists()
+        list_view = app.query_one("#notes-list", ListView)
+        assert len(list_view) == 1
+        # Preview falls back to the remaining note.
+        assert app._current_path is not None
+        assert app._current_path.name == "a.md"
+
+
+async def test_tui_delete_last_note_clears_preview(tmp_path):
+    p = _write_note(tmp_path, "only.md", "# only\nbody-only\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.click("#confirm-delete-btn")
+        await pilot.pause()
+
+        assert not p.exists()
+        list_view = app.query_one("#notes-list", ListView)
+        assert len(list_view) == 0
+        assert app._current_path is None
+        assert app.query_one("#raw-view", TextArea).text == ""
+
+
+async def test_tui_delete_failure_notifies_and_keeps_file(tmp_path, monkeypatch):
+    p = _write_note(tmp_path, "a.md", "# a\n")
+
+    def _boom(_path):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr("second_brain.tui.delete_note", _boom)
+
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.click("#confirm-delete-btn")
+        await pilot.pause()
+
+        assert p.exists()
+        list_view = app.query_one("#notes-list", ListView)
+        assert len(list_view) == 1
+
+
+async def test_confirm_delete_screen_buttons_dismiss_with_value(tmp_path):
+    """The modal returns True for Delete, False for Cancel."""
+    _write_note(tmp_path, "a.md", "# a\n")
+    app = SecondBrainApp(base_dir=tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        results: list[bool] = []
+        app.push_screen(ConfirmDeleteScreen("a.md"), callback=results.append)
+        await pilot.pause()
+        await pilot.click("#confirm-delete-btn")
+        await pilot.pause()
+        assert results == [True]
+
+        app.push_screen(ConfirmDeleteScreen("a.md"), callback=results.append)
+        await pilot.pause()
+        await pilot.click("#cancel-delete-btn")
+        await pilot.pause()
+        assert results == [True, False]

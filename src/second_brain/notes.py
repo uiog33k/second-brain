@@ -110,6 +110,19 @@ def update_note(path: Path, content: str, now: datetime | None = None) -> Path:
     return path.resolve()
 
 
+def delete_note(path: Path) -> None:
+    """Delete a note file.
+
+    Args:
+        path: Path to the note file to delete.
+
+    Raises:
+        FileNotFoundError: If ``path`` does not exist.
+        OSError: If the file cannot be removed.
+    """
+    path.unlink()
+
+
 def list_notes(base_dir: Path, sort: SortMode = "mtime") -> list[Path]:
     """Return markdown notes in ``base_dir`` ordered by ``sort``.
 
