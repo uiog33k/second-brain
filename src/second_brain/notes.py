@@ -19,6 +19,28 @@ def slugify(title: str) -> str:
     return slug or "untitled"
 
 
+_TAG_UNSAFE_RE = re.compile(r"""[\s,:\[\]{}"']+""")
+
+
+def normalize_tag(tag: str) -> str:
+    """Normalize a raw tag string into an Obsidian/YAML-safe tag value.
+
+    Steps:
+        1. Strip leading/trailing whitespace, then leading ``#``.
+        2. Replace runs of whitespace or YAML-flow-unsafe characters
+           (``, : [ ] { } " '``) with ``-``.
+        3. Collapse runs of ``-`` and trim leading/trailing ``-``.
+        4. Lower-case.
+
+    Returns:
+        Normalized tag, or empty string if nothing meaningful remains.
+    """
+    s = tag.strip().lstrip("#").strip()
+    s = _TAG_UNSAFE_RE.sub("-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s.lower()
+
+
 def build_note_path(title: str, base_dir: Path, note_date: date) -> Path:
     """Build the full file path for a note, creating the directory if needed.
 
@@ -41,16 +63,25 @@ def create_note(
     base_dir: Path,
     now: datetime | None = None,
     body: str | None = None,
+    tags: list[str] | None = None,
 ) -> Path:
     """Create a markdown note file and return its absolute path.
+
+    The note opens with an Obsidian-compatible YAML frontmatter block. A
+    ``created:`` field is always emitted; a ``tags:`` field is included
+    only when at least one non-empty tag survives normalization.
 
     Args:
         title: Note title used for the heading and slugged filename.
         base_dir: Directory where the note is written (created if missing).
         now: Optional fixed timestamp; defaults to ``datetime.now()``.
-        body: Optional body text appended below the header, separated by a
-            blank line. Newlines are preserved verbatim. Empty/``None``
+        body: Optional body text appended below the heading, separated by
+            a blank line. Newlines are preserved verbatim. Empty/``None``
             leaves the stub note unchanged.
+        tags: Optional list of raw tag strings. Each is passed through
+            :func:`normalize_tag` (leading ``#`` stripped, whitespace and
+            YAML-unsafe characters replaced with ``-``, lower-cased).
+            ``None`` and ``[]`` are treated identically.
 
     Returns:
         Absolute path to the newly created note file.
@@ -58,7 +89,13 @@ def create_note(
     now = now or datetime.now()
     path = build_note_path(title, base_dir, now.date())
     timestamp = now.replace(microsecond=0).isoformat()
-    content = f"# {title}\n\n{timestamp}\n"
+
+    fm_lines = [f"created: {timestamp}"]
+    if tags:
+        clean = [t for t in (normalize_tag(t) for t in tags) if t]
+        if clean:
+            fm_lines.append(f"tags: [{', '.join(clean)}]")
+    content = "---\n" + "\n".join(fm_lines) + "\n---\n\n# " + title + "\n"
     if body:
         content = f"{content}\n{body}\n"
     path.write_text(content, encoding="utf-8")
@@ -69,6 +106,7 @@ _MODIFIED_LINE_RE = re.compile(r"^modified:.*$", re.MULTILINE)
 _CREATION_TS_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[ \t]*$", re.MULTILINE
 )
+_FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
 
 
 def update_note(path: Path, content: str, now: datetime | None = None) -> Path:
@@ -96,15 +134,22 @@ def update_note(path: Path, content: str, now: datetime | None = None) -> Path:
     if _MODIFIED_LINE_RE.search(content):
         new_content = _MODIFIED_LINE_RE.sub(modified_line, content, count=1)
     else:
-        match = _CREATION_TS_RE.search(content)
-        if match:
-            insert_at = match.end()
+        fm = _FRONTMATTER_RE.match(content)
+        if fm:
+            inner_end = fm.end(1)
             new_content = (
-                content[:insert_at] + "\n" + modified_line + content[insert_at:]
+                content[:inner_end] + "\n" + modified_line + content[inner_end:]
             )
         else:
-            trimmed = content.rstrip("\n")
-            new_content = f"{trimmed}\n\n{modified_line}\n"
+            match = _CREATION_TS_RE.search(content)
+            if match:
+                insert_at = match.end()
+                new_content = (
+                    content[:insert_at] + "\n" + modified_line + content[insert_at:]
+                )
+            else:
+                trimmed = content.rstrip("\n")
+                new_content = f"{trimmed}\n\n{modified_line}\n"
 
     path.write_text(new_content, encoding="utf-8")
     return path.resolve()

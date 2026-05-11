@@ -46,7 +46,23 @@ def cli(ctx: click.Context):
     default=None,
     help="Read body content from PATH. Ignored if --content is also given.",
 )
-def new(title: str, content: str | None, from_file: Path | None):
+@click.option(
+    "-t",
+    "--tag",
+    "tags",
+    multiple=True,
+    help=(
+        "Tag to attach (Obsidian YAML frontmatter). Repeatable. "
+        "Leading '#' stripped; whitespace and YAML-unsafe characters "
+        "become '-'; lower-cased."
+    ),
+)
+def new(
+    title: str,
+    content: str | None,
+    from_file: Path | None,
+    tags: tuple[str, ...],
+):
     """Create a new note with the given TITLE."""
     base_dir = Path(
         os.environ.get("SECOND_BRAIN_DIR", str(Path.home() / "second_brain"))
@@ -63,8 +79,8 @@ def new(title: str, content: str | None, from_file: Path | None):
     else:
         body = content
 
-    logger.debug("Creating note in {}", base_dir)
-    path = create_note(title, base_dir, body=body)
+    logger.debug("Creating note in {} with tags={}", base_dir, list(tags))
+    path = create_note(title, base_dir, body=body, tags=list(tags) or None)
     logger.info("Created note: {}", path)
     click.echo(path)
 

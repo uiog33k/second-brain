@@ -65,8 +65,8 @@ def test_cli_new_file_content_has_heading(tmp_note_dir):
     result = runner.invoke(cli, ["new", "My heading test"])
     assert result.exit_code == 0
     md_file = next(tmp_note_dir.glob("*.md"))
-    lines = md_file.read_text().splitlines()
-    assert lines[0] == "# My heading test"
+    text = md_file.read_text()
+    assert "\n# My heading test\n" in text
 
 
 def test_cli_new_file_content_has_timestamp(tmp_note_dir):
@@ -134,10 +134,51 @@ def test_cli_new_no_flags_unchanged(tmp_note_dir):
     result = runner.invoke(cli, ["new", "Plain"])
     assert result.exit_code == 0
     md_file = next(tmp_note_dir.glob("*.md"))
-    lines = md_file.read_text(encoding="utf-8").splitlines()
-    assert lines[0] == "# Plain"
-    # stub note: heading, blank, timestamp — no body section
-    assert len(lines) == 3
+    text = md_file.read_text(encoding="utf-8")
+    # stub note: frontmatter block + heading
+    assert text.startswith("---\n")
+    assert "\n# Plain\n" in text
+    # no body — file ends right after heading line
+    assert text.endswith("\n# Plain\n")
+
+
+def test_cli_new_single_tag_writes_frontmatter(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "T", "-t", "work"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert "tags: [work]" in text
+
+
+def test_cli_new_multiple_tags(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "T", "-t", "work", "-t", "planning"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert "tags: [work, planning]" in text
+
+
+def test_cli_new_tag_strips_hash(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "T", "-t", "#work"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert "tags: [work]" in text
+
+
+def test_cli_new_no_tags_no_tags_key(tmp_note_dir):
+    result = runner.invoke(cli, ["new", "T"])
+    assert result.exit_code == 0
+    md_file = next(tmp_note_dir.glob("*.md"))
+    text = md_file.read_text(encoding="utf-8")
+    assert "tags:" not in text
+
+
+def test_cli_new_help_mentions_tag():
+    result = runner.invoke(cli, ["new", "--help"])
+    assert result.exit_code == 0
+    assert "-t" in result.output
+    assert "--tag" in result.output
 
 
 # ---------------------------------------------------------------------------

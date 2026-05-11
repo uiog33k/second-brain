@@ -9,6 +9,7 @@ from second_brain.notes import (
     create_note,
     delete_note,
     list_notes,
+    normalize_tag,
     slugify,
     update_note,
 )
@@ -46,6 +47,30 @@ def test_slugify(title, expected):
 
 
 # ---------------------------------------------------------------------------
+# normalize_tag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("work", "work"),
+        ("#work", "work"),
+        ("  #work  ", "work"),
+        ("MyTag", "mytag"),
+        ("my project", "my-project"),
+        ("work,planning", "work-planning"),
+        ("a:b", "a-b"),
+        ("#", ""),
+        ("   ", ""),
+        ("--leading--", "leading"),
+    ],
+)
+def test_normalize_tag(raw, expected):
+    assert normalize_tag(raw) == expected
+
+
+# ---------------------------------------------------------------------------
 # build_note_path
 # ---------------------------------------------------------------------------
 
@@ -76,8 +101,8 @@ def test_create_note_file_exists(tmp_path):
 
 def test_create_note_content_heading(tmp_path):
     path = create_note("Test idea", tmp_path, now=FIXED_NOW)
-    lines = path.read_text().splitlines()
-    assert lines[0] == "# Test idea"
+    text = path.read_text()
+    assert "\n# Test idea\n" in text
 
 
 def test_create_note_content_timestamp(tmp_path):
@@ -86,10 +111,77 @@ def test_create_note_content_timestamp(tmp_path):
     assert "2026-03-22T14:30:00" in text
 
 
-def test_create_note_no_yaml_frontmatter(tmp_path):
+def test_create_note_emits_yaml_frontmatter(tmp_path):
     path = create_note("Test idea", tmp_path, now=FIXED_NOW)
     text = path.read_text()
-    assert not text.startswith("---")
+    assert text.startswith("---\n")
+
+
+def test_create_note_frontmatter_contains_created(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    text = path.read_text()
+    fm_end = text.index("\n---\n", 4)
+    block = text[:fm_end]
+    assert "created: 2026-03-22T14:30:00" in block
+
+
+def test_create_note_no_tags_omits_tags_key(tmp_path):
+    path = create_note("Test idea", tmp_path, now=FIXED_NOW)
+    text = path.read_text()
+    fm_end = text.index("\n---\n", 4)
+    block = text[:fm_end]
+    assert "tags:" not in block
+
+
+def test_create_note_single_tag(tmp_path):
+    path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work"])
+    text = path.read_text()
+    assert "tags: [work]" in text
+
+
+def test_create_note_multiple_tags_preserve_order(tmp_path):
+    path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work", "planning"])
+    text = path.read_text()
+    assert "tags: [work, planning]" in text
+
+
+def test_create_note_tags_normalized(tmp_path):
+    path = create_note("T", tmp_path, now=FIXED_NOW, tags=["#Work", "my project"])
+    text = path.read_text()
+    assert "tags: [work, my-project]" in text
+
+
+def test_create_note_all_empty_tags_dropped(tmp_path):
+    path = create_note("T", tmp_path, now=FIXED_NOW, tags=["#", "   "])
+    text = path.read_text()
+    assert "tags:" not in text
+
+
+def test_create_note_heading_follows_frontmatter(tmp_path):
+    path = create_note("Project kickoff", tmp_path, now=FIXED_NOW)
+    text = path.read_text()
+    assert "\n---\n\n# Project kickoff\n" in text
+
+
+def test_create_note_body_appended_after_heading(tmp_path):
+    path = create_note("Title", tmp_path, now=FIXED_NOW, body="paragraph")
+    text = path.read_text()
+    assert "\n# Title\n\nparagraph\n" in text
+
+
+def test_create_note_stub_exact_shape(tmp_path):
+    path = create_note("Stub", tmp_path, now=FIXED_NOW)
+    text = path.read_text(encoding="utf-8")
+    assert text == "---\ncreated: 2026-03-22T14:30:00\n---\n\n# Stub\n"
+
+
+def test_create_note_with_tags_exact_shape(tmp_path):
+    path = create_note("T", tmp_path, now=FIXED_NOW, tags=["work", "planning"])
+    text = path.read_text(encoding="utf-8")
+    assert (
+        text
+        == "---\ncreated: 2026-03-22T14:30:00\ntags: [work, planning]\n---\n\n# T\n"
+    )
 
 
 def test_create_note_returns_absolute_path(tmp_path):
@@ -143,7 +235,10 @@ def test_create_note_multiple_duplicates(tmp_path):
 def test_create_note_with_body_appends_after_header(tmp_path):
     path = create_note("Test idea", tmp_path, now=FIXED_NOW, body="hello world")
     text = path.read_text(encoding="utf-8")
-    assert text == "# Test idea\n\n2026-03-22T14:30:00\n\nhello world\n"
+    assert (
+        text
+        == "---\ncreated: 2026-03-22T14:30:00\n---\n\n# Test idea\n\nhello world\n"
+    )
 
 
 def test_create_note_body_preserves_newlines(tmp_path):
@@ -156,13 +251,13 @@ def test_create_note_body_preserves_newlines(tmp_path):
 def test_create_note_body_none_leaves_stub(tmp_path):
     path = create_note("Stub", tmp_path, now=FIXED_NOW, body=None)
     text = path.read_text(encoding="utf-8")
-    assert text == "# Stub\n\n2026-03-22T14:30:00\n"
+    assert text == "---\ncreated: 2026-03-22T14:30:00\n---\n\n# Stub\n"
 
 
 def test_create_note_body_empty_string_leaves_stub(tmp_path):
     path = create_note("Stub", tmp_path, now=FIXED_NOW, body="")
     text = path.read_text(encoding="utf-8")
-    assert text == "# Stub\n\n2026-03-22T14:30:00\n"
+    assert text == "---\ncreated: 2026-03-22T14:30:00\n---\n\n# Stub\n"
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +405,53 @@ def test_update_note_preserves_blank_line_before_body(tmp_path):
     text = original.read_text(encoding="utf-8")
     # body line is preceded by a blank line, not glued to the modified line
     assert "\n\nparagraph one\n" in text
+
+
+def test_update_note_modified_inserted_inside_frontmatter(tmp_path):
+    original = create_note("Fm", tmp_path, now=FIXED_NOW)
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    fm_end = text.index("\n---\n", 4)
+    block = text[: fm_end + len("\n---\n")]
+    assert "created: 2026-03-22T14:30:00" in block
+    assert "modified: 2026-05-10T09:15:00" in block
+
+
+def test_update_note_preserves_created_field(tmp_path):
+    original = create_note("Fm", tmp_path, now=FIXED_NOW)
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "created: 2026-03-22T14:30:00" in text
+
+
+def test_update_note_replaces_modified_inside_frontmatter(tmp_path):
+    original = create_note("Fm", tmp_path, now=FIXED_NOW)
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    later = datetime(2026, 5, 11, 10, 0, 0)
+    update_note(original, original.read_text(encoding="utf-8"), now=later)
+    text = original.read_text(encoding="utf-8")
+    assert text.count("modified:") == 1
+    assert "modified: 2026-05-11T10:00:00" in text
+
+
+def test_update_note_preserves_tags_across_update(tmp_path):
+    original = create_note(
+        "Fm", tmp_path, now=FIXED_NOW, tags=["work", "planning"]
+    )
+    update_note(original, original.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = original.read_text(encoding="utf-8")
+    assert "tags: [work, planning]" in text
+
+
+def test_update_note_legacy_file_no_frontmatter_unchanged_shape(tmp_path):
+    p = tmp_path / "legacy.md"
+    p.write_text(
+        "# Legacy\n\n2026-01-01T00:00:00\n\nbody\n", encoding="utf-8"
+    )
+    update_note(p, p.read_text(encoding="utf-8"), now=EDIT_NOW)
+    text = p.read_text(encoding="utf-8")
+    assert not text.startswith("---")
+    assert "modified: 2026-05-10T09:15:00" in text
 
 
 def test_update_note_replaces_modified_line_with_multi_token_value(tmp_path):
