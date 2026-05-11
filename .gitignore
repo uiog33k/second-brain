@@ -1,6 +1,7 @@
 # Local Claude Code config (project-specific)
 .claude/
 CLAUDE.md
+Original_init_CLAUDE.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
