@@ -17,7 +17,7 @@ scripting and automation.
 
 ```
 ┌─────────────────┬──────────────────────────────────┐
-│ Notes list      │                         [ Edit ] │
+│ Notes list      │                [ Edit ] [ Delete ] │
 │   ...           │ Markdown viewer / editor         │
 │   ...           │                                  │
 │   ...           │ (rendered markdown of the        │
@@ -28,9 +28,11 @@ scripting and automation.
 
 - **Left sidebar:** scrollable list of notes with a **Create** button pinned at
   the bottom.
-- **Right pane:** rendered markdown view of the highlighted note, with an
-  **Edit** button at the top that opens the highlighted note in the editor.
-  A keybinding toggles to a raw text view that shows exactly what is on disk.
+- **Right pane:** rendered markdown view of the highlighted note, with
+  **Edit** and **Delete** buttons at the top. **Edit** opens the highlighted
+  note in the editor; **Delete** prompts for confirmation before removing the
+  file from disk. A keybinding toggles to a raw text view that shows exactly
+  what is on disk.
 
 The TUI reads notes from `SECOND_BRAIN_DIR` (default `~/second_brain`), the
 same directory used by the CLI.
@@ -45,6 +47,7 @@ same directory used by the CLI.
 | `r`       | Toggle preview: rendered markdown ↔ raw text.                    |
 | `n`       | Start a new note (same as clicking **Create**).                   |
 | `e`       | Edit the highlighted note (same as clicking **Edit**).            |
+| `d`       | Delete the highlighted note after a confirmation modal.           |
 | `Escape`  | Cancel the current edit and return to the previous selection.     |
 | `q`       | Quit the TUI (prompts to confirm if there are unsaved edits).     |
 
@@ -81,9 +84,18 @@ timestamp is preserved.
 If you press `q` while you have unsaved edits, a **Discard unsaved changes?**
 modal appears so you do not accidentally lose work.
 
+## Deleting a note
+
+Pressing `d` (or clicking **Delete**) opens a confirmation modal showing the
+filename: **Delete `<filename>`? This cannot be undone.** Confirming removes
+the file from disk via `notes.delete_note` (a hard `Path.unlink` — there is no
+trash directory), refreshes the list, and falls back to the next note (or
+clears the preview if it was the last one). Cancelling leaves the file
+untouched. `d` is a no-op while the editor is open or when the list is empty.
+
 ## Out of scope
 
-The TUI currently supports view, create, and edit. Renaming files, deleting
-notes, search/filter, conflict detection (when files change on disk during
-editing), and tag/folder navigation are all explicitly out of scope — use
-the underlying markdown files directly if you need those operations.
+The TUI currently supports view, create, edit, and delete. Renaming files,
+search/filter, conflict detection (when files change on disk during editing),
+and tag/folder navigation are all explicitly out of scope — use the
+underlying markdown files directly if you need those operations.

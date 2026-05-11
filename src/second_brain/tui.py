@@ -26,7 +26,13 @@ from textual.widgets import (
     TextArea,
 )
 
-from second_brain.notes import SortMode, create_note, list_notes, update_note
+from second_brain.notes import (
+    SortMode,
+    create_note,
+    delete_note,
+    list_notes,
+    update_note,
+)
 
 
 def _resolve_base_dir() -> Path:
@@ -86,6 +92,53 @@ class ConfirmDiscardScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class ConfirmDeleteScreen(ModalScreen[bool]):
+    """Modal that asks the user to confirm hard deletion of a note."""
+
+    CSS = """
+    ConfirmDeleteScreen {
+        align: center middle;
+    }
+    #confirm-dialog {
+        width: 60;
+        height: auto;
+        border: thick $error;
+        background: $surface;
+        padding: 1 2;
+    }
+    #confirm-message { padding-bottom: 1; }
+    #confirm-buttons { height: 3; align-horizontal: right; }
+    #confirm-buttons Button { margin: 0 1; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=False),
+    ]
+
+    def __init__(self, filename: str) -> None:
+        super().__init__()
+        self._filename = filename
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-dialog"):
+            yield Static(
+                f"Delete `{self._filename}`? This cannot be undone.",
+                id="confirm-message",
+            )
+            with Horizontal(id="confirm-buttons"):
+                yield Button("Delete", id="confirm-delete-btn", variant="error")
+                yield Button("Cancel", id="cancel-delete-btn", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm-delete-btn":
+            self.dismiss(True)
+        elif event.button.id == "cancel-delete-btn":
+            self.dismiss(False)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class SecondBrainApp(App):
     """Two-pane TUI: note list on the left, viewer/editor on the right."""
 
@@ -117,6 +170,7 @@ class SecondBrainApp(App):
         Binding("r", "toggle_render", "Raw/Rendered"),
         Binding("n", "new_note", "New"),
         Binding("e", "edit_note", "Edit"),
+        Binding("d", "delete_note", "Delete"),
         Binding("escape", "cancel_edit", "Cancel", show=False),
         Binding("q", "quit", "Quit"),
     ]
@@ -143,6 +197,7 @@ class SecondBrainApp(App):
             with Vertical(id="right-pane"):
                 with Horizontal(id="viewer-buttons"):
                     yield Button("Edit", id="edit-btn")
+                    yield Button("Delete", id="delete-btn", variant="error")
                 yield MarkdownViewer(
                     "",
                     id="markdown-view",
@@ -203,6 +258,10 @@ class SecondBrainApp(App):
         item = event.item
         if not isinstance(item, NoteListItem):
             return
+        # Ignore stale events that reference an item no longer in the list
+        # (e.g. emitted before the list was refreshed after a delete).
+        if item not in event.list_view.children:
+            return
         if self._guard_navigation(item.path):
             return
         await self._show_note(item.path)
@@ -210,6 +269,8 @@ class SecondBrainApp(App):
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         item = event.item
         if not isinstance(item, NoteListItem):
+            return
+        if item not in event.list_view.children:
             return
         if self._guard_navigation(item.path):
             return
@@ -221,6 +282,8 @@ class SecondBrainApp(App):
             self.action_new_note()
         elif bid == "edit-btn":
             self.action_edit_note()
+        elif bid == "delete-btn":
+            self.action_delete_note()
         elif bid == "save-btn":
             await self._save_edit()
         elif bid == "cancel-btn":
@@ -263,6 +326,23 @@ class SecondBrainApp(App):
         if self._current_path is None:
             return
         self._enter_edit_existing_mode(self._current_path)
+
+    def action_delete_note(self) -> None:
+        if self._current_path is None or self._is_editing():
+            return
+        path = self._current_path
+
+        async def _on_choice(should_delete: bool | None) -> None:
+            if not should_delete:
+                return
+            try:
+                delete_note(path)
+            except OSError as exc:
+                self.notify(f"Failed to delete note: {exc}", severity="error")
+                return
+            await self._refresh_list()
+
+        self.push_screen(ConfirmDeleteScreen(path.name), callback=_on_choice)
 
     def action_cancel_edit(self) -> None:
         if self._is_editing():

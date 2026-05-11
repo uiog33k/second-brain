@@ -13,8 +13,9 @@ uv sync
 ## Usage
 
 Running with no arguments launches an interactive Textual TUI for browsing,
-creating, and editing notes (see `docs/tui.md`). Press `n` to start a new
-note or `e` to edit the highlighted one.
+creating, editing, and deleting notes (see `docs/tui.md`). Press `n` to start
+a new note, `e` to edit the highlighted one, or `d` to delete it (with
+confirmation).
 
 ```bash
 uv run second_brain
